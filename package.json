@@ -1,6 +1,6 @@
 {
   "name": "@almosawy/cortex-brain",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "The Deterministic Project Brain. Search, verify, and export code context for AI with zero hallucinations.",
   "main": "cli.js",
   "bin": {
