@@ -7,3 +7,6 @@ coverage/
 .turbo/
 cortex.exe
 cortex-brain.db
+*.db-shm
+*.db-wal
+*.db
