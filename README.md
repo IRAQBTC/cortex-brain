@@ -9,15 +9,16 @@ Cortex is a local-first, high-performance tool that scans your codebase, builds 
 - **⚡ Blazing Fast:** Powered by native SQLite (`better-sqlite3`), search results in <10ms.
 - **🛡️ Zero Hallucinations:** Verify any symbol (function, class, file) before AI uses it. If it's not in the graph, it's not real.
 - **💥 Blast Radius:** Before modifying a function, see exactly which other files will break.
+- **📦 AI Context Exporter:** Export perfectly formatted Markdown code blocks to paste directly into Claude or ChatGPT.
 - **🔌 Native MCP Support:** Connects directly to Claude Desktop and Cursor as an MCP server.
 - **🔒 Local-First:** Your code never leaves your machine.
 
 ## 📦 Installation
 
 ```bash
-npm install -g cortex-brain
+npm install -g @almosawy/cortex-brain
 🎯 Quick Start
-Navigate to your project directory:
+Go to your project directory:
 
 bash
 cd /path/to/your/project
@@ -30,6 +31,19 @@ Start the Dashboard:
 bash
 cortex serve
 Open your browser at http://localhost:3000.
+
+🛠️ CLI Commands (Full List)
+cortex scan - Build the AST graph and dependency edges.
+
+cortex serve - Start the Cortex Dashboard (API + UI).
+
+cortex ask "<query>" - Search the codebase from terminal.
+
+cortex verify <type> <name> [file] - Verify if a symbol exists.
+
+cortex context - Generate AI context (Markdown) for the project.
+
+cortex mcp - Start the MCP server for Claude Desktop / Cursor integration.
 
 🔌 MCP Integration (Claude Desktop / Cursor)
 Add this to your claude_desktop_config.json or Cursor MCP settings:
@@ -44,7 +58,7 @@ json
   }
 }
 🏗️ Architecture
-Scanner: Uses tree-sitter to parse JavaScript/TypeScript into a precise AST.
+Scanner: Uses acorn to parse JavaScript/TypeScript into a precise AST.
 
 Graph: Stores nodes (functions, classes, files) and edges (imports, defines) in SQLite.
 
