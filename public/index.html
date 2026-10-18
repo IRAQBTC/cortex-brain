@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Cortex Dashboard - Enterprise Code Intelligence</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <style>
+        :root {
+            --bg: #0a0e27;
+            --card: #1e2447;
+            --text: #ffffff;
+            --sec: #a0aec0;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+            --green: #10b981;
+            --red: #ef4444;
+            --border: #2d3561;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; padding: 2rem;
+        }
+        .header {
+            background: #151a3a; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            border-radius: 12px; margin-bottom: 2rem;
+        }
+        .logo { font-size: 1.5rem; font-weight: bold; display: flex; gap: 0.5rem; align-items: center; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        .stats {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--card); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);
+        }
+        .stat-card h3 { color: var(--sec); font-size: 0.9rem; margin-bottom: 0.5rem; font-weight: normal; }
+        .stat-val { font-size: 2rem; font-weight: bold; color: var(--blue); }
+
+        .search-box {
+            width: 100%; padding: 1rem; font-size: 1.1rem;
+            background: var(--card); border: 2px solid var(--border); border-radius: 8px;
+            color: white; margin-bottom: 2rem; outline: none; transition: border 0.3s;
+        }
+        .search-box:focus { border-color: var(--blue); }
+
+        .result-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;
+        }
+        .res-head { display: flex; justify-content: space-between; margin-bottom: 1rem; }
+        .res-title { font-family: monospace; font-size: 1.2rem; color: white; }
+        .badge {
+            padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: bold;
+            background: rgba(59, 130, 246, 0.2); color: #60a5fa; text-transform: uppercase;
+        }
+        .res-path { font-family: monospace; color: var(--sec); font-size: 0.9rem; margin-bottom: 1rem; }
+        .code-box {
+            background: #0d1117; padding: 1rem; border-radius: 8px;
+            overflow-x: auto; font-size: 0.9rem; margin-bottom: 1rem;
+        }
+        .btns { display: flex; gap: 0.5rem; }
+        .btn {
+            padding: 0.5rem 1rem; border: none; border-radius: 6px;
+            cursor: pointer; font-weight: bold; transition: opacity 0.2s;
+            display: flex; align-items: center; gap: 0.3rem;
+        }
+        .btn:hover { opacity: 0.8; }
+        .btn-main { background: var(--blue); color: white; }
+        .btn-sec { background: transparent; color: white; border: 1px solid var(--border); }
+        
+        .toast {
+            position: fixed; bottom: 2rem; right: 2rem; background: var(--green);
+            color: white; padding: 1rem 1.5rem; border-radius: 8px;
+            transform: translateY(100px); opacity: 0; transition: all 0.3s;
+            font-weight: bold; z-index: 1000;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { background: var(--red); }
+
+        .loading { text-align: center; color: var(--blue); padding: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo"><span>🧠</span> Cortex Dashboard</div>
+        <button class="btn btn-sec" onclick="window.location.reload()">🔄 Refresh</button>
+    </div>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card"><h3>📂 Files Scanned</h3><div class="stat-val" id="statFiles">-</div></div>
+            <div class="stat-card"><h3>⚙️ Functions</h3><div class="stat-val" id="statFunctions">-</div></div>
+            <div class="stat-card"><h3>🏗️ Classes</h3><div class="stat-val" id="statClasses">-</div></div>
+            <div class="stat-card"><h3>🔗 Imports</h3><div class="stat-val" id="statImports">-</div></div>
+        </div>
+
+        <input type="text" id="searchInput" class="search-box" placeholder="Search your codebase... (Press ↓ to navigate)">
+        
+        <div id="results"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const esc = (str) => (str || '').replace(/[&<>'"]/g, tag => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag]));
+
+        // 1. تحميل الإحصائيات
+        window.onload = async () => {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('statFiles').textContent = data.data.files;
+                    document.getElementById('statFunctions').textContent = data.data.functions;
+                    document.getElementById('statClasses').textContent = data.data.classes;
+                    document.getElementById('statImports').textContent = data.data.imports;
+                }
+            } catch (e) { console.error('Stats error', e); }
+        };
+
+        // 2. البحث
+        let timer, activeIndex = -1, currentResults = [];
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(timer);
+            const q = e.target.value.trim();
+            const container = document.getElementById('results');
+            activeIndex = -1;
+            
+            if (q.length < 2) { container.innerHTML = ''; return; }
+            
+            container.innerHTML = '<div class="loading">Searching...</div>';
+            timer = setTimeout(async () => {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                if (data.success) {
+                    currentResults = data.data;
+                    render(currentResults);
+                }
+            }, 300);
+        });
+
+        // 3. التنقل بلوحة المفاتيح
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            const cards = document.querySelectorAll('.result-card');
+            if (!cards.length) return;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                activeIndex = (activeIndex + 1) % cards.length;
+                updateActive(cards);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                activeIndex = (activeIndex - 1 + cards.length) % cards.length;
+                updateActive(cards);
+            } else if (e.key === 'Enter' && activeIndex >= 0) {
+                e.preventDefault();
+                const btn = cards[activeIndex].querySelector('.btn-main');
+                if (btn) btn.click();
+            }
+        });
+
+        function updateActive(cards) {
+            cards.forEach((c, i) => {
+                c.style.borderColor = i === activeIndex ? 'var(--blue)' : 'var(--border)';
+                if (i === activeIndex) c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
+
+        // 4. عرض النتائج
+        function render(results) {
+            const container = document.getElementById('results');
+            if (results.length === 0) { container.innerHTML = '<div class="loading">No results found.</div>'; return; }
+            
+            container.innerHTML = results.map(r => `
+                <div class="result-card">
+                    <div class="res-head">
+                        <span class="res-title">${esc(r.name)}</span>
+                        <span class="badge">${esc(r.kind).toUpperCase()}</span>
+                    </div>
+                    <div class="res-path">📂 ${esc(r.file_path)}</div>
+                    ${r.content ? `<div class="code-box"><pre><code class="language-javascript">${esc(r.content.substring(0, 300))}</code></pre></div>` : ''}
+                    <div class="btns">
+                        <button class="btn btn-main" onclick="copyCode('${esc(r.name)}', '${esc(r.file_path)}')">📋 Copy Code</button>
+                        <button class="btn btn-sec" onclick="verify('${esc(r.name)}', '${esc(r.file_path)}')">✅ Verify</button>
+                        <button class="btn btn-sec" onclick="blast('${esc(r.name)}', '${esc(r.file_path)}')">💥 Blast Radius</button>
+                    </div>
+                </div>
+            `).join('');
+            if (window.Prism) Prism.highlightAll();
+        }
+
+        // 5. أزرار الميزات
+        async function copyCode(name, path) {
+            const res = await fetch(`/api/file?name=${encodeURIComponent(name)}&path=${encodeURIComponent(path)}`);
+            const data = await res.json();
+            if (data.success && data.data) {
+                navigator.clipboard.writeText(data.data.content || '');
+                toast('✅ Copied!');
+            } else {
+                toast('⚠️ No content available', true);
+            }
+        }
+
+        async function verify(name, path) {
+            const res = await fetch('/api/verify', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({symbolName: name, filePath: path}) });
+            const data = await res.json();
+            toast(data.status === 'VERIFIED' ? '✅ VERIFIED: Code is real.' : '❌ REFUTED: Hallucination detected.', data.status !== 'VERIFIED');
+        }
+
+        async function blast(name, path) {
+            const res = await fetch(`/api/blast-radius?name=${encodeURIComponent(name)}&path=${encodeURIComponent(path)}`);
+            const data = await res.json();
+            toast(`💥 ${name} affects ${data.affectedFilesCount} file(s).`, false);
+        }
+
+        function toast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.background = isError ? 'var(--red)' : 'var(--green)';
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>

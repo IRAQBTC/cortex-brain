@@ -1,0 +1,4 @@
+{
+  "main": "cortex-bundle.js",
+  "output": "cortex.blob"
+}
