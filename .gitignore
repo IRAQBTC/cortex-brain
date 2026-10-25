@@ -1,40 +1,13 @@
-# Dependencies
 node_modules/
-.pnpm-store/
-
-# Build outputs
-dist/
-build/
-*.exe
-*.sea
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Database and Cortex specific
-cortex-brain.db
-cortex-brain.db-shm
-cortex-brain.db-wal
 .cortex/
-
-# Backups and Logs
-*.backup
-*.backup.*
-*.log
-
-# OS generated files
-.DS_Store
-Thumbs.db
-*.bak
-*.log
-*.pre-*
+backups/
+reports/
 _archive/
-cortex-brain.db*
 *.bak
 *.log
 *.pre-*
+*.backup*
+cortex-brain.db*
 cortex.exe
-cortex-brain.db*
-_archive/
+*.tgz
+.env
