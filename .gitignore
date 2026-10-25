@@ -32,3 +32,9 @@ Thumbs.db
 *.pre-*
 _archive/
 cortex-brain.db*
+*.bak
+*.log
+*.pre-*
+cortex.exe
+cortex-brain.db*
+_archive/
