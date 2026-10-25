@@ -1,6 +1,6 @@
 {
   "name": "@almosawy/cortex-brain",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Cortex Enterprise: The Ultimate AI Code Intelligence & Verification Platform. Zero hallucinations.",
   "main": "server.js",
   "type": "commonjs",

@@ -11,21 +11,21 @@ const scriptDir = __dirname;
 try {
   switch (command) {
     case 'scan':
-      console.log('≡ƒºá Starting Cortex AST Scanner...');
+      console.log('🧠 Starting Cortex AST Scanner...');
       execSync(`node "${path.join(scriptDir, 'scanner.js')}"`, { stdio: 'inherit' });
       break;
     case 'serve':
     case 'start':
-      console.log('≡ƒÜÇ Starting Cortex Dashboard Server...');
+      console.log('🚀 Starting Cortex Dashboard Server...');
       execSync(`node "${path.join(scriptDir, 'server.js')}"`, { stdio: 'inherit' });
       break;
     case 'mcp':
-      console.log('≡ƒöî Starting Cortex MCP Server...');
-      execSync(`node "${path.join(scriptDir, 'mcp-server.js')}"`, { stdio: 'inherit' });
+      console.log('🔌 Starting Cortex MCP Server...');
+      execSync(`node "${path.join(scriptDir, 'mcp-server.mjs')}"`, { stdio: 'inherit' });
       break;
     case 'ask':
       if (!args) {
-        console.error('Γ¥î Please provide a question. Example: cortex ask "scan"');
+        console.error('❌ Please provide a question. Example: cortex ask "scan"');
         process.exit(1);
       }
       execSync(`node "${path.join(scriptDir, 'ask.js')}" "${args}"`, { stdio: 'inherit' });
@@ -37,7 +37,7 @@ try {
     case '-h':
     case undefined:
       console.log(`
-≡ƒºá Cortex CLI - The Deterministic Project Brain
+🧠 Cortex CLI - The Deterministic Project Brain
 
 Usage:
   cortex scan       Build the AST graph and dependency edges (creates cortex-brain.db)
@@ -49,11 +49,11 @@ Usage:
       `);
       break;
     default:
-      console.error(`Γ¥î Unknown command: ${command}`);
+      console.error(`❌ Unknown command: ${command}`);
       console.log('Run "cortex --help" for usage information.');
       process.exit(1);
   }
 } catch (error) {
-  console.error(`\n≡ƒÆÑ Command failed: ${error.message}`);
+  console.error(`\n💥 Command failed: ${error.message}`);
   process.exit(1);
 }
