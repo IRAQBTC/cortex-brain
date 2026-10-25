@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Cortex Brain Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --text: #e2e8f0;
+            --accent: #38bdf8;
+            --border: #334155;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: var(--accent);
+            margin-bottom: 5px;
+        }
+        .stats-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .stat-card {
+            background-color: var(--panel);
+            border: 1px solid var(--border);
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 120px;
+        }
+        .stat-card h3 { margin: 0; color: #94a3b8; font-size: 14px; }
+        .stat-card p { margin: 10px 0 0 0; font-size: 24px; font-weight: bold; color: var(--accent); }
+        
+        .search-container {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .search-input {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 18px;
+            background-color: var(--panel);
+            border: 2px solid var(--border);
+            border-radius: 30px;
+            color: white;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus { border-color: var(--accent); }
+        
+        .results-container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .result-item {
+            background-color: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            border-left: 4px solid var(--accent);
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .result-kind {
+            background-color: var(--accent);
+            color: var(--bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .result-file { color: #94a3b8; }
+        .result-name { font-size: 18px; font-weight: bold; color: #f8fafc; margin-bottom: 10px; }
+        .result-snippet {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #0b1120;
+            padding: 10px;
+            border-radius: 4px;
+            color: #cbd5e1;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        mark {
+            background-color: #f59e0b;
+            color: #000;
+            font-weight: bold;
+            border-radius: 2px;
+            padding: 0 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🧠 Cortex Brain</h1>
+        <p>The Deterministic Brain for AI Code Analysis</p>
+    </div>
+
+    <div class="stats-container" id="stats">
+        <p style="color: #94a3b8;">Loading stats...</p>
+    </div>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search semantic code (e.g., 'process', 'initialize', 'function')..." autocomplete="off">
+    </div>
+
+    <div class="results-container" id="results">
+        <!-- Results will load here -->
+    </div>
+
+    <script>
+        // 1. جلب الإحصائيات
+        fetch('http://localhost:3000/api/stats')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const s = data.data;
+                    document.getElementById('stats').innerHTML = `
+                        <div class="stat-card"><h3>Files</h3><p>${s.files}</p></div>
+                        <div class="stat-card"><h3>Functions</h3><p>${s.functions}</p></div>
+                        <div class="stat-card"><h3>Classes</h3><p>${s.classes}</p></div>
+                        <div class="stat-card"><h3>Methods</h3><p>${s.methods}</p></div>
+                        <div class="stat-card"><h3>Imports</h3><p>${s.imports}</p></div>
+                    `;
+                }
+            })
+            .catch(err => {
+                document.getElementById('stats').innerHTML = `<p style="color:#ef4444;">❌ Failed to connect to API. Is server.js running?</p>`;
+            });
+
+        // 2. البحث الدلالي
+        let debounceTimer;
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            const query = e.target.value.trim();
+            const resultsDiv = document.getElementById('results');
+
+            if (query.length < 2) {
+                resultsDiv.innerHTML = '';
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                fetch(`http://localhost:3000/api/search?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        resultsDiv.innerHTML = '';
+                        if (!data.success || data.data.length === 0) {
+                            resultsDiv.innerHTML = `<p style="text-align:center; color:#94a3b8;">No results found for "${query}"</p>`;
+                            return;
+                        }
+
+                        data.data.forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = 'result-item';
+                            div.innerHTML = `
+                                <div class="result-header">
+                                    <span class="result-kind">${item.kind.toUpperCase()}</span>
+                                    <span class="result-file">${item.file_path}</span>
+                                </div>
+                                <div class="result-name">${item.name}</div>
+                                <div class="result-snippet">${item.snippet}</div>
+                            `;
+                            resultsDiv.appendChild(div);
+                        });
+                    })
+                    .catch(err => {
+                        resultsDiv.innerHTML = `<p style="color:#ef4444;">Error connecting to Cortex API. Is server.js running?</p>`;
+                    });
+            }, 300);
+        });
+    </script>
+</body>
+</html>

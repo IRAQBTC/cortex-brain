@@ -1,8 +1,9 @@
 {
   "name": "@almosawy/cortex-brain",
-  "version": "1.0.4",
-  "description": "The Deterministic Project Brain. Search, verify, and export code context for AI with zero hallucinations.",
-  "main": "cli.js",
+  "version": "2.0.0",
+  "description": "Cortex Enterprise: The Ultimate AI Code Intelligence & Verification Platform. Zero hallucinations.",
+  "main": "server.js",
+  "type": "commonjs",
   "bin": {
     "cortex": "./cli.js"
   },
@@ -10,31 +11,36 @@
     "cli.js",
     "scanner.js",
     "server.js",
-    "mcp-server.js",
+    "mcp-server.mjs",
     "context.js",
     "ask.js",
     "verify.js",
     "session.js",
+    "db.js",
+    "parser.js",
+    "call-graph.js",
+    "call-edges-store.js",
+    "change-intelligence.js",
+    "dependency-audit.js",
+    "handoff-generator.js",
+    "handoff-package.js",
     "public/**"
   ],
   "scripts": {
     "start": "node server.js",
     "scan": "node scanner.js",
-    "serve": "node server.js",
-    "mcp": "node mcp-server.js"
+    "dev": "node server.js",
+    "test": "vitest run"
   },
   "keywords": [
     "ai",
     "developer-tools",
-    "code-search",
-    "static-analysis",
-    "context",
+    "code-analysis",
+    "tree-sitter",
+    "dependency-graph",
     "claude",
     "gpt",
-    "hallucination-prevention",
-    "graph",
-    "ast",
-    "acorn"
+    "hallucination-prevention"
   ],
   "author": "almosawy",
   "license": "MIT",
@@ -42,15 +48,17 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.5.0",
-    "acorn": "^8.11.0",
-    "acorn-walk": "^8.3.0",
-    "better-sqlite3": "^11.0.0",
-    "cors": "^2.8.5",
-    "express": "^4.21.0",
-    "express-rate-limit": "^7.4.0",
-    "helmet": "^8.0.0",
-    "pino-http": "^10.0.0",
-    "zod": "^3.23.0"
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "better-sqlite3": "12.9.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-javascript": "^0.21.4",
+    "tree-sitter-python": "^0.21.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0"
   }
 }

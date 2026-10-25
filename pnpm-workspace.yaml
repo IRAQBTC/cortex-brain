@@ -1,3 +1,9 @@
 ﻿packages:
   - "packages/*"
   - "tests/*"
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  tree-sitter: true
+  tree-sitter-javascript: true
+  tree-sitter-python: true

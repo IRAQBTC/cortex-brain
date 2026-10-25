@@ -1,0 +1,33 @@
+{
+  "name": "cortex-brain",
+  "displayName": "Cortex Brain (AI Anti-Hallucination)",
+  "description": "Verify if a function exists in the codebase using Cortex Semantic Engine",
+  "version": "1.0.0",
+  "publisher": "cortex-ai",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:cortex.verifyFunction"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cortex.verifyFunction",
+        "title": "Cortex: Verify Function Existence"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "cortex.verifyFunction",
+          "group": "navigation"
+        }
+      ]
+    }
+  }
+}

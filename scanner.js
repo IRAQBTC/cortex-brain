@@ -1,223 +1,499 @@
-#!/usr/bin/env node
+
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
-const acorn = require('acorn');
-const walk = require('acorn-walk');
+const crypto = require('crypto');
+const db = require('./db');
+const parser = require('./parser');
+const { extractLocalCalls } = require('./call-graph');
+const { ensureCallEdgesSchema } = require('./call-edges-store');
 
-const CONFIG = {
-  targetDir: process.env.SCAN_DIR || process.cwd(),
-  dbPath: process.env.CORTEX_DB_PATH || path.join(process.cwd(), 'cortex-brain.db'),
-  ignoreDirs: ['node_modules', '.git', 'dist', 'coverage', '.turbo', 'build', '.next'],
-  extensions: ['.js', '.jsx', '.ts', '.tsx'],
-};
+const IGNORED_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  '.cortex',
+  'coverage',
+  '.next',
+  '.venv',
+  'venv',
+  '__pycache__',
+  'backups'
+]);
 
-class EnterpriseScanner {
-  constructor() {
-    this.db = null;
-    this.stats = { files: 0, functions: 0, classes: 0, imports: 0, edges: 0 };
-  }
+const SUPPORTED_EXTENSIONS = new Set([
+  '.js', '.mjs', '.cjs', '.jsx',
+  '.ts', '.tsx', '.py'
+]);
 
-  initializeDB() {
-    console.log(`🗄️ Initializing Native Graph Database...`);
-    this.db = new Database(CONFIG.dbPath);
-    this.db.pragma('journal_mode = WAL');
+const MAX_FILE_SIZE = 1024 * 1024;
 
-    this.db.exec(`
-      DROP TABLE IF EXISTS nodes;
-      DROP TABLE IF EXISTS edges;
-      
-      CREATE TABLE nodes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        kind TEXT NOT NULL,
-        name TEXT NOT NULL,
-        file_path TEXT NOT NULL,
-        content TEXT,
-        signature TEXT,
-        jsdoc TEXT
-      );
-      
-      CREATE TABLE edges (
-        source_id INTEGER NOT NULL,
-        target_id INTEGER NOT NULL,
-        kind TEXT NOT NULL,
-        FOREIGN KEY(source_id) REFERENCES nodes(id) ON DELETE CASCADE,
-        FOREIGN KEY(target_id) REFERENCES nodes(id) ON DELETE CASCADE
-      );
-      
-      CREATE INDEX idx_node_name ON nodes (name);
-      CREATE INDEX idx_node_file ON nodes (file_path);
-      CREATE INDEX idx_edge_source ON edges (source_id);
-      CREATE INDEX idx_edge_target ON edges (target_id);
-    `);
+function hashContent(content) {
+  return crypto
+    .createHash('sha256')
+    .update(content, 'utf8')
+    .digest('hex');
+}
 
-    this.insertNode = this.db.prepare(`
-      INSERT INTO nodes (kind, name, file_path, content, signature, jsdoc) 
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    
-    this.insertEdge = this.db.prepare(`
-      INSERT INTO edges (source_id, target_id, kind) 
-      VALUES (?, ?, ?)
-    `);
-  }
+function toDbPath(value) {
+  return value.split(path.sep).join('/');
+}
 
-  scanDirectory(dir) {
-    console.log(`🔍 Scanning: ${dir}`);
-    this._walk(dir);
-  }
+function shouldIgnoreDirectory(name) {
+  return IGNORED_DIRS.has(name);
+}
 
-  _walk(dir) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+function collectFiles(root) {
+  const files = [];
+
+  function walk(directory) {
+    const entries = fs.readdirSync(directory, {
+      withFileTypes: true
+    });
+
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (!CONFIG.ignoreDirs.includes(entry.name)) this._walk(fullPath);
-      } else if (entry.isFile() && CONFIG.extensions.some(ext => entry.name.endsWith(ext))) {
-        this._processFile(fullPath);
+      if (entry.isSymbolicLink()) {
+        continue;
       }
+
+      const fullPath = path.join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        if (!shouldIgnoreDirectory(entry.name)) {
+          walk(fullPath);
+        }
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      // Exclude saved backup and failed-artifact files from source indexing.
+      if (/(?:\.backup-|\.failed-)/i.test(entry.name) || /^\.cortex-candidate-/i.test(entry.name)) {
+        continue;
+      }
+
+      if (!SUPPORTED_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+        continue;
+      }
+
+      const stat = fs.statSync(fullPath);
+
+      if (stat.size > MAX_FILE_SIZE) {
+        console.warn(`[SKIP] File exceeds 1 MB: ${fullPath}`);
+        continue;
+      }
+
+      files.push(fullPath);
     }
   }
 
-  _processFile(fullPath) {
-    try {
-      const relativePath = path.relative(CONFIG.targetDir, fullPath);
-      const code = fs.readFileSync(fullPath, 'utf8');
-      this.stats.files++;
+  walk(root);
+  return files.sort();
+}
 
-      const processFileTx = this.db.transaction(() => {
-        const fileResult = this.insertNode.run('file', path.basename(fullPath), relativePath, code, null, null);
-        const fileId = fileResult.lastInsertRowid;
+function extractImports(source, language) {
+  const imports = new Set();
 
-        // استخدام acorn لتحليل الكود
-        const ast = acorn.parse(code, {
-          ecmaVersion: 'latest',
-          sourceType: 'module',
-          locations: true,
-        });
+  const supportedLanguages = new Set([
+    'javascript',
+    'typescript',
+    'python'
+  ]);
 
-        // استخراج الاستيرادات
-        this._processImports(ast, fileId, relativePath, code);
+  if (!supportedLanguages.has(language)) {
+    return [];
+  }
 
-        // استخراج الرموز (دوال، كلاسات)
-        this._processSymbols(ast, fileId, relativePath, code);
-      });
+  // Reuse parser instances between files.
+  const cache = extractImports._parserCache ||
+    (extractImports._parserCache = new Map());
 
-      processFileTx();
+  let parser = cache.get(language);
 
-    } catch (error) {
-      console.warn(`⚠️ Skipping (Parse Error in ${path.relative(CONFIG.targetDir, fullPath)}): ${error.message}`);
+  if (!parser) {
+    const TreeSitter = require('tree-sitter');
+    const grammar = language === 'python'
+      ? require('tree-sitter-python')
+      : require('tree-sitter-javascript');
+
+    parser = new TreeSitter();
+    parser.setLanguage(grammar);
+    cache.set(language, parser);
+  }
+
+  const sourceText = String(source);
+  const sourceBytes = Buffer.byteLength(sourceText, 'utf8');
+  let bufferSize = 32768;
+
+  while (bufferSize <= sourceBytes) {
+    bufferSize *= 2;
+  }
+
+  const tree = sourceBytes < 32768
+    ? parser.parse(sourceText)
+    : parser.parse(sourceText, null, { bufferSize });
+
+  function stringValue(node) {
+    if (!node) return null;
+
+    if (node.type === 'string') {
+      const fragment = node.namedChildren.find(
+        child => child.type === 'string_fragment'
+      );
+
+      if (fragment) return fragment.text;
+
+      // Empty string literal.
+      return '';
+    }
+
+    if (node.type === 'template_string') {
+      // Accept only static templates; reject interpolated templates.
+      if (node.namedChildren.some(
+        child => child.type === 'template_substitution'
+      )) {
+        return null;
+      }
+
+      const fragment = node.namedChildren.find(
+        child => child.type === 'string_fragment'
+      );
+
+      return fragment ? fragment.text : '';
+    }
+
+    return null;
+  }
+
+  function addSpecifier(value) {
+    if (typeof value === 'string' && value.length > 0) {
+      imports.add(value);
     }
   }
 
-  _processImports(ast, fileId, relativePath, fullCode) {
-    walk.simple(ast, {
-      ImportDeclaration: (node) => {
-        const moduleName = node.source.value;
-        this.stats.imports++;
+  function visit(node) {
+    if (language === 'python') {
+      if (node.type === 'import_statement') {
+        for (const child of node.namedChildren) {
+          if (child.type === 'dotted_name') {
+            addSpecifier(child.text);
+          } else if (child.type === 'aliased_import') {
+            const module = child.namedChildren.find(
+              item => item.type === 'dotted_name'
+            );
 
-        let resolvedPath = moduleName;
-        let edgeKind = 'imports_external';
-
-        if (moduleName.startsWith('.') || moduleName.startsWith('/')) {
-          edgeKind = 'imports_internal';
-          const dirOfCurrentFile = path.dirname(path.join(CONFIG.targetDir, relativePath));
-          const possiblePaths = [
-            path.join(dirOfCurrentFile, moduleName),
-            path.join(dirOfCurrentFile, `${moduleName}.js`),
-            path.join(dirOfCurrentFile, `${moduleName}.ts`),
-            path.join(dirOfCurrentFile, moduleName, 'index.js'),
-            path.join(dirOfCurrentFile, moduleName, 'index.ts')
-          ];
-
-          for (const p of possiblePaths) {
-            if (fs.existsSync(p)) {
-              resolvedPath = path.relative(CONFIG.targetDir, p);
-              break;
-            }
+            if (module) addSpecifier(module.text);
           }
         }
+      } else if (node.type === 'import_from_statement') {
+        const module = node.childForFieldName('module_name');
 
-        const importResult = this.insertNode.run('import', moduleName, relativePath, null, `import '${moduleName}'`, '');
-        const importId = importResult.lastInsertRowid;
-        this.insertEdge.run(fileId, importId, edgeKind);
-        this.stats.edges++;
-      },
-      CallExpression: (node) => {
-        // دعم require
-        if (node.callee.name === 'require' && node.arguments[0] && node.arguments[0].type === 'Literal') {
-          const moduleName = node.arguments[0].value;
-          this.stats.imports++;
-          const importResult = this.insertNode.run('import', moduleName, relativePath, null, `require('${moduleName}')`, '');
-          const importId = importResult.lastInsertRowid;
-          this.insertEdge.run(fileId, importId, 'imports_external');
-          this.stats.edges++;
+        if (module) {
+          // Preserve relative prefixes such as .helpers and ..core.engine.
+          addSpecifier(module.text);
         }
       }
-    });
-  }
+    } else {
+      if (
+        node.type === 'import_statement' ||
+        node.type === 'export_statement'
+      ) {
+        addSpecifier(
+          stringValue(node.childForFieldName('source'))
+        );
+      }
 
-  _processSymbols(ast, fileId, relativePath, fullCode) {
-    walk.simple(ast, {
-      FunctionDeclaration: (node) => this._insertSymbol(node, 'function', fileId, relativePath, fullCode),
-      FunctionExpression: (node) => {
-        if (node.id) this._insertSymbol(node, 'function', fileId, relativePath, fullCode, node.id.name);
-      },
-      ArrowFunctionExpression: (node) => {
-        // التقاط الدوال السهمية المخزنة في متغيرات
-        const parent = node.parent;
-        if (parent && parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') {
-          this._insertSymbol(node, 'function', fileId, relativePath, fullCode, parent.id.name);
-        }
-      },
-      ClassDeclaration: (node) => this._insertSymbol(node, 'class', fileId, relativePath, fullCode),
-      MethodDefinition: (node) => {
-        if (node.key.type === 'Identifier' && node.value.type.includes('Function')) {
-          this._insertSymbol(node.value, 'method', fileId, relativePath, fullCode, node.key.name);
+      if (node.type === 'call_expression') {
+        const fn = node.childForFieldName('function');
+        const isRequire = fn &&
+          fn.type === 'identifier' &&
+          fn.text === 'require';
+        const isDynamicImport = fn && fn.type === 'import';
+
+        if (isRequire || isDynamicImport) {
+          const args = node.childForFieldName('arguments');
+
+          if (args) {
+            const argument = args.namedChildren[0];
+            addSpecifier(stringValue(argument));
+          }
         }
       }
-    });
+    }
+
+    for (let i = 0; i < node.childCount; i++) {
+      visit(node.child(i));
+    }
   }
 
-  _insertSymbol(node, kind, fileId, relativePath, fullCode, overrideName = null) {
-    const name = overrideName || (node.id && node.id.name) || null;
-    if (!name) return;
-
-    if (kind === 'function' || kind === 'method') this.stats.functions++;
-    if (kind === 'class') this.stats.classes++;
-
-    const content = fullCode.substring(node.start, node.end);
-    const signature = `${kind === 'class' ? 'class' : 'function'} ${name}`;
-
-    const symbolResult = this.insertNode.run(kind, name, relativePath, content, signature, '');
-    const symbolId = symbolResult.lastInsertRowid;
-    this.insertEdge.run(fileId, symbolId, 'defines');
-    this.stats.edges++;
-  }
-
-  finalize() {
-    this.db.close();
-    console.log('\n✅ Enterprise Graph Scan Complete!');
-    console.log(`   📂 Files: ${this.stats.files}`);
-    console.log(`   ⚙️ Symbols (Func/Class): ${this.stats.functions + this.stats.classes}`);
-    console.log(`   🔗 Imports: ${this.stats.imports}`);
-    console.log(`   🔗 Total Edges: ${this.stats.edges}`);
-    console.log(`💾 Graph saved at: ${CONFIG.dbPath}`);
-  }
+  visit(tree.rootNode);
+  return [...imports];
 }
 
-async function main() {
-  const scanner = new EnterpriseScanner();
+function prepareFile(root, absolutePath) {
+  const source = fs.readFileSync(absolutePath, 'utf8');
+  const language = parser.detectLanguage(absolutePath);
+
+  if (!language) {
+    return null;
+  }
+
+  const relativePath = toDbPath(
+    path.relative(root, absolutePath)
+  );
+
+  // Detailed parsing is additive: keep symbols and imports indexed
+  // even when Tree-sitter reports recoverable syntax errors.
+  const parseResult = typeof parser.parseCodeDetailed === 'function'
+    ? parser.parseCodeDetailed(source, language)
+    : { symbols: parser.parseCode(source, language), hasErrors: false, diagnostics: [] };
+
+  const symbols = parseResult.symbols;
+  const imports = extractImports(source, language);
+  const calls = extractLocalCalls(source, language).calls;
+  const syntaxDiagnostics = Array.isArray(parseResult.diagnostics)
+    ? parseResult.diagnostics
+    : [];
+
+  return {
+    absolutePath,
+    relativePath,
+    source,
+    language,
+    hash: hashContent(source),
+    symbols,
+    imports,
+    calls,
+    hasSyntaxErrors: Boolean(parseResult.hasErrors),
+    syntaxDiagnostics
+  };
+}
+
+function buildIndex(root, preparedFiles) {
+  ensureCallEdgesSchema(db);
+
+  const insertCallEdge = db.prepare(`
+    INSERT INTO call_edges (
+      file_path, caller, caller_line, callee,
+      call_line, resolution, target_line
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertNode = db.prepare(`
+    INSERT INTO nodes (
+      file_path, name, kind, content,
+      signature, line, jsdoc
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertFts = db.prepare(`
+    INSERT INTO nodes_fts (
+      rowid, name, content, file_path
+    )
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const insertEdge = db.prepare(`
+    INSERT INTO edges (source, target, kind)
+    VALUES (?, ?, ?)
+  `);
+
+  const rebuild = db.transaction(() => {
+    // All index changes are atomic. A failure rolls them back.
+    db.exec(`
+      DELETE FROM nodes_fts;
+      DELETE FROM edges;
+      DELETE FROM call_edges;
+      DELETE FROM nodes;
+    `);
+
+    let fileCount = 0;
+    let symbolCount = 0;
+    let edgeCount = 0;
+
+    for (const file of preparedFiles) {
+      const fileNode = insertNode.run(
+        file.relativePath,
+        path.posix.basename(file.relativePath),
+        'file',
+        file.source,
+        null,
+        1,
+        null
+      );
+
+      insertFts.run(
+        fileNode.lastInsertRowid,
+        path.posix.basename(file.relativePath),
+        file.source,
+        file.relativePath
+      );
+
+      fileCount++;
+
+      for (const symbol of file.symbols) {
+        const result = insertNode.run(
+          file.relativePath,
+          symbol.name,
+          symbol.type,
+          symbol.code,
+          symbol.signature || null,
+          symbol.startLine,
+          symbol.jsdoc || null
+        );
+
+        insertFts.run(
+          result.lastInsertRowid,
+          symbol.name,
+          symbol.code,
+          file.relativePath
+        );
+
+        symbolCount++;
+      }
+
+      for (const target of file.imports) {
+        insertEdge.run(
+          file.relativePath,
+          target,
+          'imports'
+        );
+
+        edgeCount++;
+      }
+
+      for (const call of file.calls) {
+        // Top-level calls have no owning function and cannot be stored
+        // in call_edges because caller is NOT NULL.
+        if (!call.caller) continue;
+
+        insertCallEdge.run(
+          file.relativePath,
+          call.caller,
+          call.callerLine ?? null,
+          call.callee,
+          call.line ?? null,
+          call.resolution || 'unresolved_name',
+          call.targetLine ?? null
+        );
+      }
+    }
+
+    db.prepare(`
+      INSERT INTO index_metadata
+        (id, root_path, indexed_at, files, symbols, imports)
+      VALUES
+        (1, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        root_path = excluded.root_path,
+        indexed_at = excluded.indexed_at,
+        files = excluded.files,
+        symbols = excluded.symbols,
+        imports = excluded.imports
+    `).run(root, new Date().toISOString(), fileCount, symbolCount, edgeCount);
+
+    return { files: fileCount, symbols: symbolCount, imports: edgeCount };
+  });
+
+  return rebuild();
+}
+
+function scanDirectory(targetPath) {
+  const root = path.resolve(targetPath);
+
+  if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+    throw new Error(`Scan target is not a directory: ${root}`);
+  }
+
+  console.log(`[CORTEX] Scan root: ${root}`);
+  console.log('[CORTEX] Collecting source files...');
+
+  const filePaths = collectFiles(root);
+  const preparedFiles = [];
+
+  // Read and parse before starting the transaction.
+  // Read errors abort before the current index is changed.
+  for (const filePath of filePaths) {
+    const prepared = prepareFile(root, filePath);
+
+    if (prepared) {
+      preparedFiles.push(prepared);
+    }
+  }
+
+  console.log(`[CORTEX] Prepared ${preparedFiles.length} files.`);
+
+  // Report syntax problems before the database transaction starts.
+  // Diagnostics do not reject files or alter the indexing policy.
+  const filesWithSyntaxErrors = preparedFiles.filter(file => file.hasSyntaxErrors);
+  const syntaxDiagnosticCount = preparedFiles.reduce(
+    (total, file) => total + file.syntaxDiagnostics.length,
+    0
+  );
+
+  if (filesWithSyntaxErrors.length > 0) {
+    console.warn(`[CORTEX] Syntax warnings: ${filesWithSyntaxErrors.length} file(s), ${syntaxDiagnosticCount} diagnostic(s).`);
+
+    for (const file of filesWithSyntaxErrors) {
+      console.warn(`[CORTEX][SYNTAX] ${file.relativePath}`);
+
+      for (const diagnostic of file.syntaxDiagnostics) {
+        const location = `line ${diagnostic.startLine}, column ${diagnostic.startColumn}`;
+        const excerpt = diagnostic.excerpt ? ` | ${diagnostic.excerpt}` : '';
+        console.warn(`  - ${diagnostic.type} at ${location}${excerpt}`);
+      }
+    }
+  } else {
+    console.log('[CORTEX] No syntax errors reported by the configured parser.');
+  }
+
+  console.log('[CORTEX] Updating index transactionally...');
+
+  const result = buildIndex(root, preparedFiles);
+
+  const integrity = db.pragma('integrity_check');
+
+  if (
+    integrity.length !== 1 ||
+    integrity[0].integrity_check !== 'ok'
+  ) {
+    throw new Error(
+      `SQLite integrity check failed: ${JSON.stringify(integrity)}`
+    );
+  }
+
+  console.log('\n========== CORTEX SCAN RESULTS ==========');
+  console.log(`Files indexed:   ${result.files}`);
+  console.log(`Symbols indexed: ${result.symbols}`);
+  console.log(`Import edges:    ${result.imports}`);
+  console.log('SQLite integrity: OK');
+  console.log('=========================================');
+
+  return result;
+}
+
+if (require.main === module) {
   try {
-    scanner.initializeDB();
-    scanner.scanDirectory(CONFIG.targetDir);
-    scanner.finalize();
+    const target = process.argv[2] || __dirname;
+    scanDirectory(target);
   } catch (error) {
-    console.error('💥 Fatal Error:', error.message);
-    process.exit(1);
+    console.error(`[CORTEX SCAN FAILED] ${error.stack || error.message}`);
+    process.exitCode = 1;
+  } finally {
+    db.close();
   }
 }
 
-main();
+module.exports = {
+  scanDirectory,
+  collectFiles,
+  extractImports
+};
+
+

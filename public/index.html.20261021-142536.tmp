@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cortex Enterprise v3.0</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root { --bg: #0f172a; --sidebar: #1e293b; --card: #1e293b; --text: #f8fafc; --sec: #94a3b8; --blue: #3b82f6; --purple: #8b5cf6; --green: #10b981; --red: #ef4444; --border: #334155; --gold: #f59e0b; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); padding: 1.5rem; display: flex; flex-direction: column; }
+        .logo { font-size: 1.5rem; font-weight: bold; color: var(--blue); margin-bottom: 2rem; display: flex; gap: 0.5rem; align-items: center; }
+        .nav-btn { padding: 1rem; background: transparent; border: none; color: var(--sec); font-size: 1rem; cursor: pointer; border-radius: 8px; text-align: left; margin-bottom: 0.5rem; transition: all 0.2s; }
+        .nav-btn:hover { background: rgba(59,130,246,0.1); color: var(--text); }
+        .nav-btn.active { background: var(--blue); color: white; }
+        .main-content { flex: 1; padding: 2rem; overflow-y: auto; }
+        .page-section { display: none; }
+        .page-section.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .page-title { font-size: 1.8rem; font-weight: bold; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+        .stat-box { background: var(--card); border: 1px solid var(--border); padding: 1.5rem; border-radius: 12px; }
+        .stat-box h3 { color: var(--sec); font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .stat-box .value { font-size: 2.5rem; font-weight: bold; color: var(--blue); }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+        .dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .btn { padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9rem; width: 100%; margin-bottom: 0.5rem; }
+        .btn-blue { background: var(--blue); color: white; }
+        .btn-gold { background: var(--gold); color: #000; }
+        .btn-purple { background: var(--purple); color: white; }
+        .btn-red { background: var(--red); color: white; }
+        .search-box { width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: white; margin-bottom: 1rem; font-size: 1.1rem; outline: none; }
+        .result-card { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--blue); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; cursor: pointer; }
+        .result-card:hover { border-color: var(--blue); transform: translateX(5px); transition: 0.1s; }
+        .list-item { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--red); padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; }
+        #network-container { width: 100%; height: 75vh; border: 1px solid var(--border); border-radius: 8px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; width: 80%; max-width: 900px; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .modal-close { background: none; border: none; color: var(--sec); font-size: 1.5rem; cursor: pointer; }
+        pre { margin: 0; padding: 1rem; overflow: auto; background: #0d1117; flex: 1; border-radius: 0 0 12px 12px; }
+        .help-card { background: rgba(59, 130, 246, 0.05); border: 1px dashed var(--blue); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; }
+        .help-card h3 { color: var(--blue); margin-bottom: 0.5rem; }
+        .help-card p, .help-card li { color: var(--sec); font-size: 0.9rem; line-height: 1.6; }
+        .help-card ul { padding-left: 1.5rem; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo"><span>&#x1F9E0;</span> Cortex Enterprise</div>
+        <button class="nav-btn active" onclick="switchPage('dashboard', this)">&#x1F4CA; Dashboard</button>
+        <button class="nav-btn" onclick="switchPage('search', this)">&#x1F50D; Search</button>
+        <button class="nav-btn" onclick="switchPage('security', this)">&#x1F6E1;&#xFE0F; Security</button>
+        <button class="nav-btn" onclick="switchPage('deadcode', this)">&#x1F9DF; Dead Code</button>
+        <button class="nav-btn" onclick="switchPage('network', this)">&#x1F5FA; Dependency Map</button>
+        <button class="nav-btn" onclick="switchPage('help', this)">â“ How to Use</button>
+        
+        <div style="margin-top: auto;">
+            <button class="btn btn-gold" onclick="window.location.href='/api/export?format=handoff'">&#x1F4E4; Export Handoff (.md)</button>
+            <button class="btn btn-purple" onclick="window.location.href='/api/export?format=json'">&#x1F4E5; Export JSON</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div id="dashboard" class="page-section active">
+            <div class="page-header"><div class="page-title">Executive Dashboard</div></div>
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div style="color:var(--sec); margin-bottom:1rem;">Code Distribution</div>
+                    <div class="chart-container"><canvas id="distChart"></canvas></div>
+                </div>
+                <div class="card" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                    <div style="color:var(--sec); margin-bottom:1rem;">Code Health Score (not measured)</div>
+                    <div style="font-size: 5rem; font-weight: bold; color: var(--green);" id="healthScore">-</div>
+                </div>
+            </div>
+            <div class="stats-row">
+                <div class="stat-box"><h3>&#x1F4C2; Files</h3><div class="value" id="statFiles">-</div></div>
+                <div class="stat-box"><h3>âš™ï¸ Functions</h3><div class="value" id="statFunctions">-</div></div>
+                <div class="stat-box"><h3>&#x1F5A5;&#xFE0F; Classes</h3><div class="value" id="statClasses">-</div></div>
+                <div class="stat-box"><h3>&#x1F517; Imports</h3><div class="value" id="statImports">-</div></div>
+            </div>
+        </div>
+
+        <div id="search" class="page-section">
+            <div class="page-header"><div class="page-title">Search Codebase</div></div>
+            <input type="text" id="searchInput" class="search-box" placeholder="Search symbols (e.g., scanDirectory, main)...">
+            <div id="searchResults"></div>
+        </div>
+
+        <div id="security" class="page-section">
+            <div class="page-header">
+                <div class="page-title">Security Audit</div>
+                <button class="btn btn-red" style="width:auto;" onclick="runSecurity()">&#x1F6E1;&#xFE0F; Run Scan</button>
+            </div>
+            <div id="securityResults" class="card">Click "Run Scan" to detect potential secrets.</div>
+        </div>
+
+        <div id="deadcode" class="page-section">
+            <div class="page-header">
+                <div class="page-title">Dead Code Analysis</div>
+                <button class="btn btn-purple" style="width:auto;" onclick="runDeadCode()">&#x1F9DF; Run Analysis</button>
+            </div>
+            <div id="deadCodeResults" class="card">Click "Run Analysis" to find unused functions.</div>
+        </div>
+
+        <div id="network" class="page-section">
+            <div class="page-header">
+                <div class="page-title">Dependency Map</div>
+                <button class="btn btn-blue" style="width:auto;" onclick="loadGraph()">&#x1F504; Reload</button>
+            </div>
+            <div id="network-container"></div>
+        </div>
+
+        <div id="help" class="page-section">
+            <div class="page-header"><div class="page-title">How to Use Cortex</div></div>
+            <div class="help-card">
+                <h3>&#x1F4E4; Export Handoff (.md)</h3>
+                <p>The most powerful feature for AI Agents (Cursor/Claude). It generates a single Markdown file containing your project's README/STATE files (if any) plus the core codebase context. Download it and feed it to any AI to instantly onboard it to your project.</p>
+            </div>
+            <div class="help-card">
+                <h3>&#x1F5FA; Dependency Map</h3>
+                <p>Visualizes how files import each other. Use this to understand the architecture before making changes. Click "Reload" to refresh the graph.</p>
+            </div>
+            <div class="help-card">
+                <h3>&#x1F6E1;&#xFE0F; Security & &#x1F9DF; Dead Code</h3>
+                <p>Uses heuristic checks to identify potential secret indicators and possible unused-function candidates. Results may include false positives or miss issues; verify findings manually before making changes.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="codeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle" style="color:var(--blue);">Code</h3>
+                <button class="modal-close" onclick="document.getElementById('codeModal').classList.remove('active')">âœ–</button>
+            </div>
+            <pre><code id="modalCode" class="language-javascript"></code></pre>
+        </div>
+    </div>
+
+    <script>
+        function switchPage(id, btn) {
+            document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(btn) btn.classList.add('active');
+            if(id === 'network') loadGraph();
+        }
+
+        const esc = (str) => (str || '').replace(/[&<>'"]/g, tag => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag]));
+
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('statFiles').textContent = data.data.files;
+                    document.getElementById('statFunctions').textContent = data.data.functions;
+                    document.getElementById('statClasses').textContent = data.data.classes;
+                    document.getElementById('statImports').textContent = data.data.imports;
+                    
+                    const resAnalytics = await fetch('/api/analytics');
+                    const analytics = await resAnalytics.json();
+                    if(analytics.success) {
+                        const el = document.getElementById('healthScore');
+                        el.textContent = 'Not measured';
+                        el.style.color = 'var(--sec)';
+                        el.style.fontSize = '2rem';
+                        el.setAttribute('title', 'A validated code-quality metric has not been implemented.');
+
+                        const ctx = document.getElementById('distChart').getContext('2d');
+                        if(window.chartInst) window.chartInst.destroy();
+                        window.chartInst = new Chart(ctx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Functions', 'Classes', 'Imports'],
+                                datasets: [{ data: [data.data.functions, data.data.classes, data.data.imports], backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981'], borderWidth: 0 }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } } }
+                        });
+                    }
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        let timer;
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(timer);
+            const q = e.target.value.trim();
+            const container = document.getElementById('searchResults');
+            if(q.length < 2) { container.innerHTML = ''; return; }
+            
+            container.innerHTML = '<p style="color:#94a3b8;">Searching...</p>';
+            timer = setTimeout(async () => {
+                try {
+                    const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+                    const data = await res.json();
+                    if(!data.success || data.data.length === 0) {
+                        container.innerHTML = '<p style="color:#94a3b8;">No results.</p>';
+                        return;
+                    }
+                    container.innerHTML = data.data.map(r => `
+                        <div class="result-card" onclick="openCode(${r.id}, '${esc(r.name)}', '${esc(r.file_path)}')">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+                                <strong style="color:white; font-family:monospace;">${esc(r.name)}</strong>
+                                <span style="color:#3b82f6; font-size:0.8rem; background:rgba(59,130,246,0.1); padding:0.2rem 0.5rem; border-radius:4px;">${esc(r.kind).toUpperCase()}</span>
+                            </div>
+                            <div style="color:#94a3b8; font-size:0.9rem; font-family:monospace;">&#x1F4C2; ${esc(r.file_path)}</div>
+                        </div>
+                    `).join('');
+                } catch(e) { container.innerHTML = '<p style="color:red;">Error.</p>'; }
+            }, 300);
+        });
+
+        async function openCode(id, name, filePath) {
+            document.getElementById('modalTitle').textContent = name;
+            document.getElementById('modalCode').textContent = 'Loading...';
+            document.getElementById('codeModal').classList.add('active');
+            try {
+                const res = await fetch('/api/file?id=' + id);
+                const data = await res.json();
+                if(data.success) {
+                    const codeEl = document.getElementById('modalCode');
+                    codeEl.textContent = data.data.content || '// No content';
+                    const ext = filePath.split('.').pop().toLowerCase();
+                    codeEl.className = ['py','python'].includes(ext) ? 'language-python' : 'language-javascript';
+                    if(window.Prism) Prism.highlightElement(codeEl);
+                }
+            } catch(e) { document.getElementById('modalCode').textContent = '// Error'; }
+        }
+
+        async function runSecurity() {
+            const container = document.getElementById('securityResults');
+            container.textContent = 'Scanning indexed file contents...';
+
+            try {
+                const res = await fetch('/api/security');
+                const data = await res.json();
+
+                if (!res.ok || !data || data.success !== true || !Array.isArray(data.data)) {
+                    throw new Error('Security scan request failed.');
+                }
+
+                const count = Number.isInteger(data.count) && data.count >= 0
+                    ? data.count
+                    : data.data.length;
+
+                let html = `
+                    <div style="margin-bottom:1rem;">
+                        <h3 style="margin-bottom:.5rem;">Security indicators: ${count}</h3>
+                        <p style="color:#fbbf24;">
+                            Heuristic scan only. Findings are unverified indicators, not confirmed vulnerabilities.
+                        </p>
+                        <p style="color:#94a3b8;">
+                            Coverage: ${esc(String(data.coverage || 'Not specified'))}
+                        </p>
+                        <p style="color:#94a3b8;">
+                            ${esc(String(data.methodology || 'Pattern-based checks; false positives and false negatives are possible.'))}
+                        </p>
+                    </div>`;
+
+                if (data.truncated === true) {
+                    html += `<p style="color:#fbbf24;font-weight:bold;margin-bottom:1rem;">
+                        Results are truncated at the configured limit. The total number of indicators may be higher.
+                    </p>`;
+                }
+
+                if (data.data.length === 0) {
+                    html += `<p style="color:var(--gold);font-weight:bold;">
+                        No indicators detected in the indexed content. This does not prove that secrets are absent.
+                    </p>`;
+                } else {
+                    html += `<div class="security-findings">`;
+
+                    for (const f of data.data) {
+                        const filePath = esc(String(f.file_path || 'Unknown file'));
+                        const indicator = esc(String(f.indicator || 'unknown_indicator'));
+                        const line = Number.isInteger(f.line) && f.line > 0
+                            ? String(f.line)
+                            : 'Unavailable';
+                        const status = esc(String(f.status || 'unverified_indicator'));
+                        const snippet = esc(String(f.snippet || 'Source content omitted'));
+
+                        html += `
+                            <div class="list-item" style="margin-bottom:.75rem;">
+                                <strong style="color:var(--blue);">${filePath}</strong>
+                                <div style="color:#94a3b8;margin-top:.35rem;">
+                                    Line: ${line} · Type: ${indicator}
+                                </div>
+                                <div style="color:#fbbf24;margin-top:.25rem;">
+                                    Status: ${status}
+                                </div>
+                                <code style="display:block;color:#fca5a5;margin-top:.5rem;white-space:normal;">
+                                    ${snippet}
+                                </code>
+                            </div>`;
+                    }
+
+                    html += `</div>`;
+                }
+
+                if (data.limitation) {
+                    html += `<p style="color:#94a3b8;margin-top:1rem;">
+                        Limitation: ${esc(String(data.limitation))}
+                    </p>`;
+                }
+
+                container.innerHTML = html;
+            } catch (e) {
+                console.error('Security scan UI failed:', e);
+                container.textContent = 'Security scan failed. Check the server response and logs.';
+            }
+        }
+        async function runDeadCode() {
+            const container = document.getElementById('deadCodeResults');
+            container.innerHTML = '<p style="color:#94a3b8;">Analyzing...</p>';
+            try {
+                const res = await fetch('/api/dead-code');
+                const data = await res.json();
+                if(data.success) {
+                    if(data.count === 0) {
+                        container.innerHTML = '<p style="color:var(--gold); font-weight:bold;">No unused-code candidates were identified by this heuristic. This does not prove that all functions are used.</p>';
+                    } else {
+                        let html = `<h3 style="color:var(--purple); margin-bottom:1rem;">&#x1F9DF; Found ${data.count} unused function(s):</h3>`;
+                        data.data.forEach(f => { 
+                            html += `<div class="list-item" style="border-left-color: var(--purple); cursor:pointer;" onclick="openCode(${f.id}, '${esc(f.name)}', '${esc(f.file_path)}')"><strong style="color:var(--purple);">${esc(f.name)}</strong><br><span style="color:#94a3b8;">&#x1F4C2; ${esc(f.file_path)}</span></div>`; 
+                        });
+                        container.innerHTML = html;
+                    }
+                }
+            } catch(e) { container.innerHTML = '<p style="color:red;">Error.</p>'; }
+        }
+
+        let net;
+        async function loadGraph() {
+            const container = document.getElementById('network-container');
+            container.innerHTML = '<p style="padding:2rem; color:#94a3b8; text-align:center;">Loading...</p>';
+            try {
+                const res = await fetch('/api/graph');
+                const data = await res.json();
+                if(!data.success || data.nodes.length === 0) {
+                    container.innerHTML = '<p style="padding:2rem; color:#94a3b8; text-align:center;">No dependency data found. Run the scanner first.</p>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                const nodes = new vis.DataSet(data.nodes);
+                const edges = new vis.DataSet(data.edges);
+
+                const options = {
+                    nodes: { shape: 'dot', size: 25, font: { color: '#fff', size: 14, face: 'monospace', strokeWidth: 2, strokeColor: '#000' }, color: { background: '#1e293b', border: '#3b82f6' } },
+                    edges: { arrows: 'to', color: '#3b82f6', smooth: { type: 'continuous' } },
+                    physics: { enabled: true, barnesHut: { gravitationalConstant: -4000, springLength: 200 }, stabilization: { iterations: 150 } }
+                };
+                if(net) net.destroy();
+                net = new vis.Network(container, { nodes, edges }, options);
+            } catch(e) { container.innerHTML = '<p style="color:red; text-align:center;">Error loading graph</p>'; }
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>

@@ -25,39 +25,30 @@ class CortexVerifier {
     }
   }
 
-  // 1. التحقق من وجود ملف
-  verifyFile(filePath) {
-    const stmt = this.db.prepare("SELECT name FROM nodes WHERE kind='file' AND file_path = ?");
-    const result = stmt.get(filePath);
-    if (result) {
-      return { status: 'VERIFIED', message: `File exists: ${filePath}` };
-    }
-    return { status: 'REFUTED', message: `File NOT found: ${filePath}` };
-  }
-
-  // 2. التحقق من وجود دالة
-  verifyFunction(funcName, filePath = null) {
-    let query = "SELECT name, file_path FROM nodes WHERE kind='function' AND name = ?";
-    let params = [funcName];
+  _verifyEntity(kind, name, filePath = null) {
+    let query = "SELECT name, file_path FROM nodes WHERE kind = ? AND name = ?";
+    let params = [kind, name];
     
     if (filePath) {
       query += " AND file_path = ?";
       params.push(filePath);
     }
 
-    const stmt = this.db.prepare(query);
-    const result = stmt.get(...params);
+    const result = this.db.prepare(query).get(...params);
     
     if (result) {
-      return { status: 'VERIFIED', message: `Function '${funcName}' found in ${result.file_path}` };
+      return { status: 'VERIFIED', message: `${kind} '${name}' found in ${result.file_path}` };
     }
-    return { status: 'REFUTED', message: `Function '${funcName}' NOT found anywhere.` };
+    return { status: 'REFUTED', message: `${kind} '${name}' NOT found anywhere.` };
   }
 
-  // 3. التحقق من وجود استيراد (Import)
+  verifyFile(filePath) { return this._verifyEntity('file', path.basename(filePath), filePath); }
+  verifyFunction(funcName, filePath) { return this._verifyEntity('function', funcName, filePath); }
+  verifyClass(className, filePath) { return this._verifyEntity('class', className, filePath); }
+  verifyMethod(methodName, filePath) { return this._verifyEntity('method', methodName, filePath); }
+
   verifyImport(moduleName) {
     try {
-      // محاولة قراءة package.json للتحقق من الحزم الخارجية
       const pkgPath = path.join(process.cwd(), 'package.json');
       if (fs.existsSync(pkgPath)) {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
@@ -67,12 +58,8 @@ class CortexVerifier {
         }
       }
       
-      // التحقق من الملفات المحلية
-      const stmt = this.db.prepare("SELECT name FROM nodes WHERE kind='file' AND name LIKE ?");
-      const result = stmt.get(`%${moduleName}%`);
-      if (result) {
-        return { status: 'VERIFIED', message: `Local module '${moduleName}' found` };
-      }
+      const result = this.db.prepare("SELECT name FROM nodes WHERE kind='file' AND name LIKE ?").get(`%${moduleName}%`);
+      if (result) return { status: 'VERIFIED', message: `Local module '${moduleName}' found` };
 
       return { status: 'REFUTED', message: `Import '${moduleName}' NOT found` };
     } catch (e) {
@@ -85,9 +72,6 @@ class CortexVerifier {
   }
 }
 
-// ==========================================
-// 4. واجهة سطر الأوامر
-// ==========================================
 async function main() {
   const args = process.argv.slice(2);
   
@@ -98,6 +82,8 @@ async function main() {
 Usage:
   node verify.js file <file_path>
   node verify.js function <function_name> [file_path]
+  node verify.js class <class_name> [file_path]
+  node verify.js method <method_name> [file_path]
   node verify.js import <module_name>
     `);
     process.exit(0);
@@ -109,28 +95,23 @@ Usage:
   const command = args[0];
   let result;
 
-  if (command === 'file') {
-    result = verifier.verifyFile(args[1]);
-  } else if (command === 'function') {
-    result = verifier.verifyFunction(args[1], args[2]);
-  } else if (command === 'import') {
-    result = verifier.verifyImport(args[1]);
-  } else {
-    console.log('❌ Unknown command. Use: file, function, or import.');
+  if (command === 'file') result = verifier.verifyFile(args[1]);
+  else if (command === 'function') result = verifier.verifyFunction(args[1], args[2]);
+  else if (command === 'class') result = verifier.verifyClass(args[1], args[2]);
+  else if (command === 'method') result = verifier.verifyMethod(args[1], args[2]);
+  else if (command === 'import') result = verifier.verifyImport(args[1]);
+  else {
+    console.log('❌ Unknown command. Use: file, function, class, method, or import.');
     process.exit(1);
   }
 
   verifier.destroy();
 
-  // طباعة النتيجة
   const icon = result.status === 'VERIFIED' ? '✅' : (result.status === 'REFUTED' ? '❌' : '⚠️');
   console.log(`\n${icon} Status: ${result.status}`);
   console.log(`   ${result.message}\n`);
   
-  if (result.status === 'REFUTED') process.exit(1); // كود خطأ للـ CI/CD
+  if (result.status === 'REFUTED') process.exit(1);
 }
 
-main().catch(err => {
-  console.error('💥 Fatal Error:', err.message);
-  process.exit(1);
-});
+main();

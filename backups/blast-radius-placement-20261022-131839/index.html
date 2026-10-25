@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cortex Enterprise v3.0</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root { --bg: #0f172a; --sidebar: #1e293b; --card: #1e293b; --text: #f8fafc; --sec: #94a3b8; --blue: #3b82f6; --purple: #8b5cf6; --green: #10b981; --red: #ef4444; --border: #334155; --gold: #f59e0b; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); padding: 1.5rem; display: flex; flex-direction: column; }
+        .logo { font-size: 1.5rem; font-weight: bold; color: var(--blue); margin-bottom: 2rem; display: flex; gap: 0.5rem; align-items: center; }
+        .nav-btn { padding: 1rem; background: transparent; border: none; color: var(--sec); font-size: 1rem; cursor: pointer; border-radius: 8px; text-align: left; margin-bottom: 0.5rem; transition: all 0.2s; }
+        .nav-btn:hover { background: rgba(59,130,246,0.1); color: var(--text); }
+        .nav-btn.active { background: var(--blue); color: white; }
+        .main-content { flex: 1; padding: 2rem; overflow-y: auto; }
+        .page-section { display: none; }
+        .page-section.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .page-title { font-size: 1.8rem; font-weight: bold; }
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+        .stat-box { background: var(--card); border: 1px solid var(--border); padding: 1.5rem; border-radius: 12px; }
+        .stat-box h3 { color: var(--sec); font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .stat-box .value { font-size: 2.5rem; font-weight: bold; color: var(--blue); }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+        .dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .index-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+        .index-status-value { font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; margin-top: 0.4rem; }
+        .index-status-label { color: var(--sec); font-size: 0.85rem; }
+        #indexStatusMessage { color: var(--sec); margin-top: 0.75rem; font-size: 0.9rem; overflow-wrap: anywhere; }
+        .btn { padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9rem; width: 100%; margin-bottom: 0.5rem; }
+        .btn-blue { background: var(--blue); color: white; }
+        .btn-gold { background: var(--gold); color: #000; }
+        .btn-purple { background: var(--purple); color: white; }
+        .btn-red { background: var(--red); color: white; }
+        .search-box { width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: white; margin-bottom: 1rem; font-size: 1.1rem; outline: none; }
+        .result-card { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--blue); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; cursor: pointer; }
+        .result-card:hover { border-color: var(--blue); transform: translateX(5px); transition: 0.1s; }
+        .list-item { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--red); padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; }
+        #network-container { width: 100%; height: 75vh; border: 1px solid var(--border); border-radius: 8px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; width: 80%; max-width: 900px; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .modal-close { background: none; border: none; color: var(--sec); font-size: 1.5rem; cursor: pointer; }
+        pre { margin: 0; padding: 1rem; overflow: auto; background: #0d1117; flex: 1; border-radius: 0 0 12px 12px; }
+        .help-card { background: rgba(59, 130, 246, 0.05); border: 1px dashed var(--blue); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; }
+        .help-card h3 { color: var(--blue); margin-bottom: 0.5rem; }
+        .help-card p, .help-card li { color: var(--sec); font-size: 0.9rem; line-height: 1.6; }
+        .help-card ul { padding-left: 1.5rem; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo"><span>&#x1F9E0;</span> Cortex Enterprise</div>
+        <button class="nav-btn active" onclick="switchPage('dashboard', this)">&#x1F4CA; Dashboard</button>
+        <button class="nav-btn" onclick="switchPage('search', this)">&#x1F50D; Search</button>
+        <button class="nav-btn" onclick="switchPage('security', this)">&#x1F6E1;&#xFE0F; Security</button>
+        <button class="nav-btn" onclick="switchPage('deadcode', this)">&#x1F9DF; Dead Code</button>
+        <button class="nav-btn" onclick="switchPage('network', this)">&#x1F5FA; Dependency Map</button>
+        <button class="nav-btn" onclick="switchPage('dependencyaudit', this)">Dependency Audit</button>
+      <button class="nav-btn" onclick="switchPage('help', this)">&#x2139;&#xFE0F; How to Use</button>
+        
+        <div style="margin-top: auto;">
+            <button class="btn btn-gold" onclick="window.location.href='/api/export?format=handoff'">&#x1F4E4; Export Handoff (.md)</button>
+            <button class="btn btn-purple" onclick="window.location.href='/api/export?format=json'">&#x1F4E5; Export JSON</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div id="dashboard" class="page-section active">
+            <div class="page-header"><div class="page-title">Executive Dashboard</div></div>
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div style="color:var(--sec); margin-bottom:1rem;">Code Distribution</div>
+                    <div class="chart-container"><canvas id="distChart"></canvas></div>
+                </div>
+                <div class="card" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                    <div style="color:var(--sec); margin-bottom:1rem;">Code Health Score (not measured)</div>
+                    <div style="font-size: 5rem; font-weight: bold; color: var(--green);" id="healthScore">-</div>
+                </div>
+            </div>
+            <div class="stats-row">
+                <div class="stat-box"><h3>&#x1F4C2; Files</h3><div class="value" id="statFiles">-</div></div>
+                <div class="stat-box"><h3>&#x2699;&#xFE0F; Functions</h3><div class="value" id="statFunctions">-</div></div>
+                <div class="stat-box"><h3>&#x1F5A5;&#xFE0F; Classes</h3><div class="value" id="statClasses">-</div></div>
+                <div class="stat-box"><h3>&#x1F517; Imports</h3><div class="value" id="statImports">-</div></div>
+            </div>            <div class="card" id="indexStatusCard" style="margin-top:1.5rem;">
+                <div class="page-header" style="margin-bottom:1rem;">
+                    <div class="page-title" style="font-size:1.2rem;">Index Status</div>
+                    <button class="btn btn-blue" id="refreshIndexStatus" type="button" style="width:auto;margin:0;">Refresh</button>
+                </div>
+                <div id="indexStatusMessage" role="status" aria-live="polite">Loading index status...</div>
+                <div class="index-status-grid" style="margin-top:1rem;">
+                    <div><div class="index-status-label">Last successful index (UTC)</div><div class="index-status-value" id="indexStatusTime">-</div></div>
+                    <div><div class="index-status-label">Indexed files</div><div class="index-status-value" id="indexStatusFiles">-</div></div>
+                    <div><div class="index-status-label">Indexed symbols</div><div class="index-status-value" id="indexStatusSymbols">-</div></div>
+                    <div><div class="index-status-label">Indexed imports</div><div class="index-status-value" id="indexStatusImports">-</div></div>
+                    <div><div class="index-status-label">Indexed root path</div><div class="index-status-value" id="indexStatusRoot">-</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="search" class="page-section">
+            <div class="page-header"><div class="page-title">Search Codebase</div></div>
+            <input type="text" id="searchInput" class="search-box" placeholder="Search symbols (e.g., scanDirectory, main)...">
+            <div id="searchResults"></div>
+        </div>
+
+        <div id="security" class="page-section">
+            <div class="page-header">
+                <div class="page-title">Security Audit</div>
+                <button class="btn btn-red" style="width:auto;" onclick="runSecurity()">&#x1F6E1;&#xFE0F; Run Scan</button>
+            </div>
+            <div id="securityResults" class="card">Click "Run Scan" to detect potential secrets.</div>
+        </div>
+
+        <div id="deadcode" class="page-section">
+            <div class="page-header">
+                <div class="page-title">Dead Code Analysis</div>
+                <button class="btn btn-purple" style="width:auto;" onclick="runDeadCode()">&#x1F9DF; Run Analysis</button>
+            </div>
+            <div id="deadCodeResults" class="card">Click "Run Analysis" to find unused functions.</div>
+        </div>
+
+        <div id="network" class="page-section">
+            <div class="page-header">
+                <div class="page-title">Dependency Map</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn btn-blue" style="width:auto;" onclick="showFileGraph()">File Dependencies</button>
+                    <button class="btn btn-blue" style="width:auto;" onclick="loadCallGraph()">Function Calls</button>
+                    <button class="btn btn-purple" style="width:auto;" type="button" onclick="showDependencyImpact()">Impact Analysis</button>
+                    <button class="btn btn-blue" style="width:auto;" onclick="showFileGraph()">&#x1F504; Reload</button>
+                </div>
+            </div>
+            <div id="graph-summary" role="status" aria-live="polite" style="margin:0 0 12px;padding:10px 14px;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#cbd5e1;font-size:12px;line-height:1.7;overflow-wrap:anywhere;"></div>
+            <div id="network-container"></div>
+            <div id="call-graph-controls" role="group" aria-label="Function call graph filters" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#0f172a;">
+                <label for="call-graph-search" style="color:#cbd5e1;font-size:12px;">Find function or file</label>
+                <input id="call-graph-search" type="search" autocomplete="off" placeholder="Function, file path, line, or kind..." style="flex:1;min-width:220px;max-width:520px;padding:9px 10px;border:1px solid var(--border);border-radius:6px;background:#1e293b;color:#f8fafc;">
+                <button id="call-graph-clear-search" type="button" class="btn btn-blue" style="width:auto;">Clear</button>
+                <span id="call-graph-filter-status" role="status" aria-live="polite" style="color:#94a3b8;font-size:12px;">Showing all declarations</span>
+            </div>
+            <div id="call-graph-summary" role="status" aria-live="polite" style="display:none;margin:0 0 12px;padding:10px 14px;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#cbd5e1;font-size:12px;line-height:1.7;overflow-wrap:anywhere;"></div>
+            <div id="call-graph-container" style="display:none;width:100%;height:75vh;border:1px solid var(--border);border-radius:8px;"></div>
+            <div id="call-graph-unresolved" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:8px;"></div>
+
+            <section id="impact-analysis-panel" style="display:none;margin-top:12px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--card);" aria-labelledby="impact-analysis-title">
+                <h3 id="impact-analysis-title" style="margin:0 0 8px;">File Impact Analysis</h3>
+                <p style="color:var(--sec);font-size:13px;line-height:1.6;margin:0 0 12px;">
+                    Select an indexed file to identify direct dependents in the current indexed snapshot.
+                    Results do not prove that a change is safe.
+                </p>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <label for="impact-target-file" style="color:var(--sec);">Target file</label>
+                    <select id="impact-target-file" disabled style="flex:1;min-width:220px;max-width:600px;padding:10px;border:1px solid var(--border);border-radius:6px;background:#0f172a;color:var(--text);">
+                        <option value="">Load indexed files first</option>
+                    </select>
+                    <button id="impact-run-button" class="btn btn-purple" type="button" style="width:auto;" onclick="runDependencyImpact()" disabled>Analyze Impact</button>
+                    <button class="btn btn-blue" type="button" style="width:auto;" onclick="showDependencyImpact()">Reload Files</button>
+                </div>
+                <p id="impact-analysis-status" role="status" aria-live="polite" style="margin:12px 0;color:var(--sec);font-size:13px;">Choose Impact Analysis to load indexed files.</p>
+                <div id="impact-analysis-results" aria-live="polite"></div>
+            </section>
+        </div>
+<section id="blast-radius-panel" style="margin-top:12px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--card);" aria-labelledby="blast-radius-title">
+  <h3 id="blast-radius-title" style="margin:0 0 8px;">Function Blast Radius</h3>
+  <p style="color:var(--sec);font-size:13px;line-height:1.6;">
+    Inspect potential same-file callers of an indexed function or method.
+    This is static candidate analysis, not proof that a change is safe.
+  </p>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <label for="blast-radius-target">Indexed symbol</label>
+    <select id="blast-radius-target" style="flex:1;min-width:240px;padding:10px;border:1px solid var(--border);border-radius:6px;background:#0f172a;color:var(--text);">
+      <option value="">Loading indexed symbols...</option>
+    </select>
+    <button id="blast-radius-run" class="btn btn-purple" type="button" style="width:auto;">Analyze Callers</button>
+    <button id="blast-radius-refresh" class="btn btn-blue" type="button" style="width:auto;">Reload Symbols</button>
+  </div>
+  <p id="blast-radius-status" role="status" aria-live="polite" style="margin:12px 0;color:var(--sec);font-size:13px;">Ready to load indexed symbols.</p>
+  <div id="blast-radius-results" aria-live="polite"></div>
+</section>
+<div id="dependencyaudit" class="page-section">
+      <div class="page-header">
+        <h2>Dependency Audit</h2>
+        <p>Static dependency classification and index integrity.</p>
+        <button id="dependency-audit-refresh" class="btn" onclick="loadDependencyAudit()">Refresh Audit</button>
+      </div>
+      <p id="dependency-audit-status" role="status" aria-live="polite">Open this page to load the report.</p>
+      <div id="dependency-audit-summary"></div>
+      <div id="dependency-audit-details"></div>
+    </div>
+
+    <div id="help" class="page-section">
+            <div class="page-header"><div class="page-title">How to Use Cortex</div></div>
+            <div class="help-card">
+                <h3>&#x1F4E4; Export Handoff (.md)</h3>
+                <p>The most powerful feature for AI Agents (Cursor/Claude). It generates a single Markdown file containing your project's README/STATE files (if any) plus the core codebase context. Download it and feed it to any AI to instantly onboard it to your project.</p>
+            </div>
+            <div class="help-card">
+                <h3>&#x1F5FA; Dependency Map</h3>
+                <p>Visualizes how files import each other. Use this to understand the architecture before making changes. Click "Reload" to refresh the graph.</p>
+            </div>
+            <div class="help-card">
+                <h3>&#x1F6E1;&#xFE0F; Security & &#x1F9DF; Dead Code</h3>
+                <p>Uses heuristic checks to identify potential secret indicators and possible unused-function candidates. Results may include false positives or miss issues; verify findings manually before making changes.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="codeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle" style="color:var(--blue);">Code</h3>
+                <button class="modal-close" onclick="document.getElementById('codeModal').classList.remove('active')">&#x2715;</button>
+            </div>
+            <pre><code id="modalCode" class="language-javascript"></code></pre>
+        </div>
+    </div>
+
+    <script>
+        function switchPage(id, btn) {
+            document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(btn) btn.classList.add('active');
+            if(id === 'network') loadGraph();
+    if(id === 'dependencyaudit') loadDependencyAudit();
+        }
+
+        const esc = (str) => (str || '').replace(/[&<>'"]/g, tag => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag]));
+
+        async function loadIndexStatus() {
+            const message = document.getElementById('indexStatusMessage');
+            const fields = {
+                time: document.getElementById('indexStatusTime'),
+                files: document.getElementById('indexStatusFiles'),
+                symbols: document.getElementById('indexStatusSymbols'),
+                imports: document.getElementById('indexStatusImports'),
+                root: document.getElementById('indexStatusRoot')
+            };
+
+            message.textContent = 'Loading index status...';
+
+            try {
+                const response = await fetch('/api/index-status', {
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+
+                const body = await response.json();
+
+                if (!response.ok || body.success !== true) {
+                    throw new Error(body.error || `HTTP ${response.status}`);
+                }
+
+                if (body.status === 'not_available') {
+                    Object.values(fields).forEach(el => { el.textContent = '-'; });
+                    message.textContent = body.message || 'Index metadata is not available. Run a successful scan.';
+                    return;
+                }
+
+                if (body.status !== 'available' || !body.data) {
+                    throw new Error('Unexpected index status response.');
+                }
+
+                const data = body.data;
+                const timestamp = Date.parse(data.indexedAt);
+                const validCount = key =>
+                    Number.isSafeInteger(data[key]) && data[key] >= 0;
+
+                if (
+                    !Number.isFinite(timestamp) ||
+                    typeof data.rootPath !== 'string' ||
+                    data.rootPath.length === 0 ||
+                    !['files', 'symbols', 'imports'].every(validCount)
+                ) {
+                    throw new Error('Index status response contains invalid data.');
+                }
+
+                fields.time.textContent = new Date(timestamp).toISOString();
+                fields.files.textContent = String(data.files);
+                fields.symbols.textContent = String(data.symbols);
+                fields.imports.textContent = String(data.imports);
+                fields.root.textContent = data.rootPath;
+                message.textContent = 'Index metadata available.';
+            } catch (error) {
+                Object.values(fields).forEach(el => { el.textContent = '-'; });
+                message.textContent = 'Unable to load index status. Check the server and try Refresh.';
+                console.error('Index status UI failed:', error);
+            }
+        }
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('statFiles').textContent = data.data.files;
+                    document.getElementById('statFunctions').textContent = data.data.functions;
+                    document.getElementById('statClasses').textContent = data.data.classes;
+                    document.getElementById('statImports').textContent = data.data.imports;
+                    
+                    const resAnalytics = await fetch('/api/analytics');
+                    const analytics = await resAnalytics.json();
+                    if(analytics.success) {
+                        const el = document.getElementById('healthScore');
+                        el.textContent = 'Not measured';
+                        el.style.color = 'var(--sec)';
+                        el.style.fontSize = '2rem';
+                        el.setAttribute('title', 'A validated code-quality metric has not been implemented.');
+
+                        const ctx = document.getElementById('distChart').getContext('2d');
+                        if(window.chartInst) window.chartInst.destroy();
+                        window.chartInst = new Chart(ctx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Functions', 'Classes', 'Imports'],
+                                datasets: [{ data: [data.data.functions, data.data.classes, data.data.imports], backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981'], borderWidth: 0 }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } } }
+                        });
+                    }
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        let timer;
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(timer);
+            const q = e.target.value.trim();
+            const container = document.getElementById('searchResults');
+            if(q.length < 2) { container.innerHTML = ''; return; }
+            
+            container.innerHTML = '<p style="color:#94a3b8;">Searching...</p>';
+            timer = setTimeout(async () => {
+                try {
+                    const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+                    const data = await res.json();
+                    if(!data.success || data.data.length === 0) {
+                        container.innerHTML = '<p style="color:#94a3b8;">No results.</p>';
+                        return;
+                    }
+                    container.innerHTML = data.data.map(r => `
+                        <div class="result-card" onclick="openCode(${r.id}, '${esc(r.name)}', '${esc(r.file_path)}')">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+                                <strong style="color:white; font-family:monospace;">${esc(r.name)}</strong>
+                                <span style="color:#3b82f6; font-size:0.8rem; background:rgba(59,130,246,0.1); padding:0.2rem 0.5rem; border-radius:4px;">${esc(r.kind).toUpperCase()}</span>
+                            </div>
+                            <div style="color:#94a3b8; font-size:0.9rem; font-family:monospace;">&#x1F4C2; ${esc(r.file_path)}</div>
+                        </div>
+                    `).join('');
+                } catch(e) { container.innerHTML = '<p style="color:red;">Error.</p>'; }
+            }, 300);
+        });
+
+        async function openCode(id, name, filePath) {
+            document.getElementById('modalTitle').textContent = name;
+            document.getElementById('modalCode').textContent = 'Loading...';
+            document.getElementById('codeModal').classList.add('active');
+            try {
+                const res = await fetch('/api/file?id=' + id);
+                const data = await res.json();
+                if(data.success) {
+                    const codeEl = document.getElementById('modalCode');
+                    codeEl.textContent = data.data.content || '// No content';
+                    const ext = filePath.split('.').pop().toLowerCase();
+                    codeEl.className = ['py','python'].includes(ext) ? 'language-python' : 'language-javascript';
+                    if(window.Prism) Prism.highlightElement(codeEl);
+                }
+            } catch(e) { document.getElementById('modalCode').textContent = '// Error'; }
+        }
+
+        async function runSecurity() {
+            const container = document.getElementById('securityResults');
+            container.textContent = 'Scanning indexed file contents...';
+
+            try {
+                const res = await fetch('/api/security');
+                const data = await res.json();
+
+                if (!res.ok || !data || data.success !== true || !Array.isArray(data.data)) {
+                    throw new Error('Security scan request failed.');
+                }
+
+                const count = Number.isInteger(data.count) && data.count >= 0
+                    ? data.count
+                    : data.data.length;
+
+                const coverageMetrics = data.coverageMetrics && typeof data.coverageMetrics === "object"
+                    ? data.coverageMetrics : {};
+                const formatMetric = value =>
+                    Number.isSafeInteger(value) && value >= 0
+                        ? value.toLocaleString() : "Unavailable";
+                const metricsHtml = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:.75rem;margin:.75rem 0 1rem;">
+                        <div class="list-item">
+                            <strong style="font-size:1.35rem;">${formatMetric(coverageMetrics.filesScanned)}</strong>
+                            <div>Files scanned</div>
+                            <small style="color:#94a3b8;">Indexed files available: ${formatMetric(coverageMetrics.indexedFilesAvailable)}</small>
+                        </div>
+                        <div class="list-item">
+                            <strong style="font-size:1.35rem;">${formatMetric(coverageMetrics.linesScanned)}</strong>
+                            <div>Lines examined</div>
+                            <small style="color:#94a3b8;">Indexed content only</small>
+                        </div>
+                    </div>`;
+                let html = `
+                    <div style="margin-bottom:1rem;">
+                        <h3 style="margin-bottom:.5rem;">Security indicators: ${count}</h3>
+                        <p style="color:#fbbf24;">
+                            Heuristic scan only. Findings are unverified indicators, not confirmed vulnerabilities.
+                        </p>
+                        <p style="color:#94a3b8;">
+                            Coverage: ${esc(String(data.coverage || 'Not specified'))}
+                        </p>
+                        ${metricsHtml}
+                        <p style="color:#94a3b8;">
+                            ${esc(String(data.methodology || 'Pattern-based checks; false positives and false negatives are possible.'))}
+                        </p>
+                    </div>`;
+
+                if (data.truncated === true) {
+                    html += `<p style="color:#fbbf24;font-weight:bold;margin-bottom:1rem;">
+                        Results are truncated at the configured limit. The total number of indicators may be higher.
+                    </p>`;
+                }
+
+                if (data.data.length === 0) {
+                    html += `<p style="color:var(--gold);font-weight:bold;">
+                        No indicators detected in the indexed content. This does not prove that secrets are absent.
+                    </p>`;
+                } else {
+                    html += `<div class="security-findings">`;
+
+                    for (const f of data.data) {
+                        const filePath = esc(String(f.file_path || 'Unknown file'));
+                        const indicator = esc(String(f.indicator || 'unknown_indicator'));
+                        const line = Number.isInteger(f.line) && f.line > 0
+                            ? String(f.line)
+                            : 'Unavailable';
+                        const status = esc(String(f.status || 'unverified_indicator'));
+                        const snippet = esc(String(f.snippet || 'Source content omitted'));
+
+                        html += `
+                            <div class="list-item" style="margin-bottom:.75rem;">
+                                <strong style="color:var(--blue);">${filePath}</strong>
+                                <div style="color:#94a3b8;margin-top:.35rem;">
+                                    Line: ${line} Â· Type: ${indicator}
+                                </div>
+                                <div style="color:#fbbf24;margin-top:.25rem;">
+                                    Status: ${status}
+                                </div>
+                                <div style="color:#fca5a5;margin-top:.25rem;">
+                                    Severity: ${esc(String(f.severity || 'unclassified'))}
+                                    | Pattern confidence: ${esc(String(f.confidence || 'unspecified'))}
+                                </div>
+                                <div style="color:#94a3b8;margin-top:.25rem;">
+                                    Recommendation: ${esc(String(f.recommendation || 'Manual review required.'))}
+                                </div>
+                                <code style="display:block;color:#fca5a5;margin-top:.5rem;white-space:normal;">
+                                    ${snippet}
+                                </code>
+                            </div>`;
+                    }
+
+                    html += `</div>`;
+                }
+
+                if (data.limitation) {
+                    html += `<p style="color:#94a3b8;margin-top:1rem;">
+                        Limitation: ${esc(String(data.limitation))}
+                    </p>`;
+                }
+
+                container.innerHTML = html;
+            } catch (e) {
+                console.error('Security scan UI failed:', e);
+                container.textContent = 'Security scan failed. Check the server response and logs.';
+            }
+        }
+        async function runDeadCode() {
+            const container = document.getElementById('deadCodeResults');
+            container.innerHTML = '<p style="color:#94a3b8;">Analyzing...</p>';
+            try {
+                const res = await fetch('/api/dead-code');
+                const data = await res.json();
+                if(data.success) {
+                    if(data.count === 0) {
+                        container.innerHTML = '<p style="color:var(--gold); font-weight:bold;">No unused-code candidates were identified by this heuristic. This does not prove that all functions are used.</p>';
+                    } else {
+                        let html = `<h3 style="color:var(--purple); margin-bottom:1rem;">&#x1F9DF; Found ${data.count} unused function(s):</h3>`;
+                        data.data.forEach(f => { 
+                            html += `<div class="list-item" style="border-left-color: var(--purple); cursor:pointer;" onclick="openCode(${f.id}, '${esc(f.name)}', '${esc(f.file_path)}')"><strong style="color:var(--purple);">${esc(f.name)}</strong><br><span style="color:#94a3b8;">&#x1F4C2; ${esc(f.file_path)}</span></div>`; 
+                        });
+                        container.innerHTML = html;
+                    }
+                }
+            } catch(e) { container.innerHTML = '<p style="color:red;">Error.</p>'; }
+        }
+
+        let net;
+let callNet;
+
+async function loadGraph() {
+    const container = document.getElementById('network-container');
+
+    if (!container) return;
+
+    if (callNet) {
+        callNet.destroy();
+        callNet = null;
+    }
+
+    const callContainer = document.getElementById('call-graph-container');
+    const callSummary = document.getElementById('call-graph-summary');
+    const unresolvedPanel = document.getElementById('call-graph-unresolved');
+    const fileSummary = document.getElementById('graph-summary');
+
+    if (callContainer) callContainer.style.display = 'none';
+    if (callSummary) callSummary.style.display = 'none';
+    if (unresolvedPanel) unresolvedPanel.style.display = 'none';
+
+    container.style.display = 'block';
+    if (fileSummary) fileSummary.style.display = 'block';
+
+    // Keep the graph scope visible outside the canvas.
+    let summary = document.getElementById('graph-summary');
+
+    if (!summary) {
+        summary = document.createElement('div');
+        summary.id = 'graph-summary';
+        summary.setAttribute('role', 'status');
+        summary.setAttribute('aria-live', 'polite');
+        summary.style.cssText =
+            'margin:0 0 12px;padding:10px 14px;border:1px solid #334155;' +
+            'border-radius:8px;background:#0f172a;color:#cbd5e1;' +
+            'font-size:12px;line-height:1.7;overflow-wrap:anywhere;';
+
+        container.parentNode.insertBefore(summary, container);
+    }
+
+    summary.textContent = 'Loading dependency graph and resolution statistics...';
+
+    // Destroy the old network before clearing its container.
+    if (net) {
+        net.destroy();
+        net = null;
+    }
+
+    container.innerHTML =
+        '<p style="padding:2rem;color:#94a3b8;text-align:center;">Loading...</p>';
+
+    try {
+        const res = await fetch('/api/graph');
+
+        if (!res.ok) {
+            throw new Error(`Graph API returned HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        if (!data.success || !Array.isArray(data.nodes) ||
+            !Array.isArray(data.edges)) {
+            throw new Error('Graph API returned an invalid response.');
+        }
+
+        const meta = data.meta || {};
+        const count = key => {
+            const value = Number(meta[key]);
+            return Number.isFinite(value) ? value : 0;
+        };
+
+        summary.textContent =
+            `Dependency graph scope: ${count('indexedFiles')} indexed files. ` +
+            `Unique resolved local file-to-file edges drawn: ${count('resolvedLocalEdges')}. ` +
+            `Import records: ${count('importRecords')}; ` +
+            `path-relative records: ${count('relativeImportRecords')}; ` +
+            `non-relative records not drawn as local edges: ${count('nonRelativeImportRecords')}; ` +
+            `unresolved relative records: ${count('unresolvedRelativeImportRecords')}; ` +
+            `duplicate local records collapsed: ${count('duplicateLocalImportRecords')}; ` +
+            `self-import records omitted from the graph: ${count('selfImportRecords')}; ` +
+            `Python dotted-relative records not resolved: ${count('pythonRelativeImportRecordsNotResolved')}. ` +
+            'Non-relative imports are not automatically classified as external dependencies.';
+
+        if (data.nodes.length === 0) {
+            container.innerHTML =
+                '<p style="padding:2rem;color:#94a3b8;text-align:center;">' +
+                'No indexed files are available for the dependency graph.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        const nodes = new vis.DataSet(data.nodes);
+        const edges = new vis.DataSet(data.edges);
+
+        const options = {
+            nodes: {
+                shape: 'dot',
+                size: 25,
+                font: {
+                    color: '#fff',
+                    size: 14,
+                    face: 'monospace',
+                    strokeWidth: 2,
+                    strokeColor: '#000'
+                },
+                color: {
+                    background: '#1e293b',
+                    border: '#3b82f6'
+                }
+            },
+            edges: {
+                arrows: 'to',
+                color: '#3b82f6',
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                enabled: true,
+                barnesHut: {
+                    gravitationalConstant: -4000,
+                    springLength: 200
+                },
+                stabilization: { iterations: 150 }
+            }
+        };
+
+        net = new vis.Network(container, { nodes, edges }, options);
+
+        // Open the indexed source through the existing code viewer.
+        net.on('click', params => {
+            if (!Array.isArray(params.nodes) || params.nodes.length !== 1) {
+                return;
+            }
+
+            const selectedId = String(params.nodes[0]);
+            const selected = data.nodes.find(
+                item => String(item.id) === selectedId
+            );
+
+            if (!selected || !selected.title) {
+                return;
+            }
+
+            openCode(
+                selected.id,
+                selected.label || selected.title,
+                selected.title
+            );
+        });
+    } catch (e) {
+        summary.textContent =
+            'Dependency graph unavailable. Check the server response and browser console.';
+        container.innerHTML =
+            '<p style="color:red;text-align:center;">Error loading graph</p>';
+        console.error('Dependency graph rendering failed:', e);
+    }
+}
+
+function showFileGraph() {
+    const impactPanel = document.getElementById('impact-analysis-panel');
+    if (impactPanel) impactPanel.style.display = 'none';
+    const fileSummary = document.getElementById('graph-summary');
+    const fileContainer = document.getElementById('network-container');
+    const callSummary = document.getElementById('call-graph-summary');
+    const callContainer = document.getElementById('call-graph-container');
+    const unresolvedPanel = document.getElementById('call-graph-unresolved');
+    const callControls = document.getElementById('call-graph-controls');
+
+    if (callNet) {
+        callNet.destroy();
+        callNet = null;
+    }
+
+    if (callSummary) callSummary.style.display = 'none';
+    if (callContainer) callContainer.style.display = 'none';
+    if (unresolvedPanel) unresolvedPanel.style.display = 'none';
+    if (callControls) callControls.style.display = 'none';
+
+    if (fileSummary) fileSummary.style.display = 'block';
+    if (fileContainer) fileContainer.style.display = 'block';
+
+    loadGraph();
+}
+
+async function loadCallGraph() {
+    const impactPanel = document.getElementById('impact-analysis-panel');
+    if (impactPanel) impactPanel.style.display = 'none';
+    const fileSummary = document.getElementById('graph-summary');
+    const fileContainer = document.getElementById('network-container');
+    const summary = document.getElementById('call-graph-summary');
+    const container = document.getElementById('call-graph-container');
+    const unresolvedPanel = document.getElementById('call-graph-unresolved');
+    const callControls = document.getElementById('call-graph-controls');
+    const searchInput = document.getElementById('call-graph-search');
+    const clearSearchButton = document.getElementById('call-graph-clear-search');
+    const filterStatus = document.getElementById('call-graph-filter-status');
+
+    if (!summary || !container || !fileContainer) return;
+
+    if (callControls) callControls.style.display = 'none';
+    if (searchInput) searchInput.value = '';
+    if (filterStatus) filterStatus.textContent = '';
+
+    if (net) {
+        net.destroy();
+        net = null;
+    }
+
+    if (callNet) {
+        callNet.destroy();
+        callNet = null;
+    }
+
+    if (fileSummary) fileSummary.style.display = 'none';
+    fileContainer.style.display = 'none';
+    container.style.display = 'block';
+    summary.style.display = 'block';
+    summary.textContent = 'Analyzing indexed function declarations and direct call candidates...';
+
+    if (unresolvedPanel) {
+        unresolvedPanel.style.display = 'none';
+        unresolvedPanel.textContent = '';
+    }
+
+    container.innerHTML =
+        '<p style="padding:2rem;color:#94a3b8;text-align:center;">Loading function call graph...</p>';
+
+    try {
+        const response = await fetch('/api/call-graph');
+
+        if (!response.ok) {
+            throw new Error(`Call graph API returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (
+            !data.success ||
+            !Array.isArray(data.nodes) ||
+            !Array.isArray(data.edges) ||
+            !data.meta
+        ) {
+            throw new Error('Call graph API response is invalid.');
+        }
+
+        const meta = data.meta;
+        const count = key => {
+            const value = Number(meta[key]);
+            return Number.isFinite(value) ? value : 0;
+        };
+
+        summary.textContent =
+            `Function declarations: ${count('declarationCount')}; ` +
+            `indexed files parsed: ${count('parsedFiles')} of ${count('indexedFiles')}; ` +
+            `declarations matched to indexed symbol records: ${count('indexedSymbolMatches')}; ` +
+            `direct identifier calls: ${count('directIdentifierCallRecords')}; ` +
+            `same-file unique-name candidate call sites: ${count('candidateCallRecords')}; ` +
+            `distinct candidate edges drawn: ${count('candidateEdges')}; ` +
+            `ambiguous names: ${count('ambiguousNameCalls')}; ` +
+            `unresolved or out-of-scope calls: ${count('unresolvedCallRecords')}; ` +
+            `parser syntax-error files: ${count('syntaxErrorFiles')}. ` +
+            'Dashed edges are candidates, not confirmed runtime call relationships. ' +
+            'Cross-file binding and member/dynamic calls are not resolved.';
+
+        if (data.nodes.length === 0) {
+            container.innerHTML =
+                '<p style="padding:2rem;color:#94a3b8;text-align:center;">' +
+                'No named function or method declarations were extracted.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        const nodes = new vis.DataSet(data.nodes);
+        const edges = new vis.DataSet(data.edges);
+
+        const options = {
+            nodes: {
+                shape: 'dot',
+                size: 20,
+                font: {
+                    color: '#fff',
+                    size: 12,
+                    face: 'monospace',
+                    strokeWidth: 2,
+                    strokeColor: '#000'
+                },
+                color: {
+                    background: '#1e293b',
+                    border: '#f59e0b'
+                }
+            },
+            edges: {
+                arrows: 'to',
+                smooth: { type: 'continuous' },
+                dashes: true
+            },
+            physics: {
+                enabled: true,
+                barnesHut: {
+                    gravitationalConstant: -3500,
+                    springLength: 180
+                },
+                stabilization: { iterations: 150 }
+            },
+            interaction: {
+                hover: true,
+                navigationButtons: true,
+                keyboard: true
+            }
+        };
+
+        if (callControls) callControls.style.display = 'flex';
+
+        callNet = new vis.Network(
+            container,
+            { nodes, edges },
+            options
+        );
+
+        const applyNodeFilter = () => {
+            const query = String(searchInput ? searchInput.value : '')
+                .trim()
+                .toLowerCase();
+
+            let visibleCount = 0;
+
+            const updates = data.nodes.map(item => {
+                const searchable = [
+                    item.functionName,
+                    item.displayName,
+                    item.label,
+                    item.filePath,
+                    item.line,
+                    item.endLine,
+                    item.declarationKind
+                ]
+                    .filter(value => value !== null && value !== undefined)
+                    .join(' ')
+                    .toLowerCase();
+
+                const matches = !query || searchable.includes(query);
+                if (matches) visibleCount++;
+
+                return { id: item.id, hidden: !matches };
+            });
+
+            nodes.update(updates);
+
+            if (filterStatus) {
+                filterStatus.textContent = !query
+                    ? `Showing all ${data.nodes.length} declarations`
+                    : visibleCount === 0
+                        ? 'No matching declarations. Clear search to show all nodes.'
+                        : `Showing ${visibleCount} of ${data.nodes.length} declarations`;
+            }
+        };
+
+        if (searchInput) {
+            searchInput.oninput = applyNodeFilter;
+        }
+
+        if (clearSearchButton) {
+            clearSearchButton.onclick = () => {
+                if (searchInput) {
+                    searchInput.value = '';
+                    searchInput.focus();
+                }
+                applyNodeFilter();
+            };
+        }
+
+        applyNodeFilter();
+
+        callNet.on('click', params => {
+            if (!Array.isArray(params.nodes) || params.nodes.length !== 1) {
+                return;
+            }
+
+            const clickedId = String(params.nodes[0]);
+            const selected = data.nodes.find(
+                item => String(item.id) === clickedId
+            );
+
+            if (!selected) return;
+
+            const openId =
+                selected.indexedNodeId !== null &&
+                selected.indexedNodeId !== undefined
+                    ? selected.indexedNodeId
+                    : selected.fileNodeId;
+
+            if (openId === null || openId === undefined) return;
+
+            const title =
+                `${selected.functionName} â€” ${selected.filePath}:${selected.line}`;
+
+            openCode(openId, title, selected.filePath);
+        });
+
+        const unresolvedRows = Array.isArray(data.unresolvedCalls)
+            ? data.unresolvedCalls
+            : [];
+
+        if (unresolvedPanel && unresolvedRows.length > 0) {
+            unresolvedPanel.style.display = 'block';
+
+            const heading = document.createElement('h3');
+            heading.textContent =
+                `Unresolved call-site samples (${unresolvedRows.length}` +
+                `${meta.unresolvedSamplesTruncated ? '+' : ''})`;
+            heading.style.marginBottom = '10px';
+            heading.style.color = '#f59e0b';
+            unresolvedPanel.appendChild(heading);
+
+            const note = document.createElement('p');
+            note.textContent =
+                'These records could not be represented as candidate edges under the current analysis policy.';
+            note.style.marginBottom = '10px';
+            note.style.color = '#94a3b8';
+            unresolvedPanel.appendChild(note);
+
+            const sampleLimitNote = document.createElement('p');
+            sampleLimitNote.textContent =
+                `Displaying ${Math.min(unresolvedRows.length, 50)} of ${unresolvedRows.length} returned samples.` +
+                (meta.unresolvedSamplesTruncated
+                    ? ' The API indicates that additional unresolved records were omitted from this sample list.'
+                    : '');
+            sampleLimitNote.style.cssText =
+                'margin-bottom:10px;color:#94a3b8;font-size:12px;line-height:1.6;';
+            unresolvedPanel.appendChild(sampleLimitNote);
+
+            for (const record of unresolvedRows.slice(0, 50)) {
+                const row = document.createElement('div');
+                row.style.cssText =
+                    'display:flex;gap:12px;justify-content:space-between;' +
+                    'align-items:center;flex-wrap:wrap;padding:8px 0;' +
+                    'border-top:1px solid #334155;';
+
+                const description = document.createElement('span');
+                const callerText = record.caller
+                    ? `${record.caller}() â†’ `
+                    : '';
+                description.textContent =
+                    `${record.filePath}:${record.callLine} â€” ` +
+                    `${callerText}${record.callee}() â€” ${record.reason}`;
+                description.style.cssText =
+                    'color:#cbd5e1;font-family:monospace;font-size:12px;';
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-blue';
+                button.style.width = 'auto';
+                button.textContent = 'Open source';
+
+                button.addEventListener('click', () => {
+                    const openId =
+                        record.callerIndexedNodeId !== null &&
+                        record.callerIndexedNodeId !== undefined
+                            ? record.callerIndexedNodeId
+                            : record.fileNodeId;
+
+                    openCode(
+                        openId,
+                        `${record.callee} â€” ${record.filePath}:${record.callLine}`,
+                        record.filePath
+                    );
+                });
+
+                row.appendChild(description);
+                row.appendChild(button);
+                unresolvedPanel.appendChild(row);
+            }
+        }
+    } catch (error) {
+        summary.textContent =
+            'Function call graph unavailable. Check the server response and logs.';
+        container.innerHTML =
+            '<p style="padding:2rem;color:red;text-align:center;">Error loading call graph.</p>';
+        console.error('Function call graph failed:', error);
+    }
+}
+async function showDependencyImpact() {
+    const panel = document.getElementById('impact-analysis-panel');
+    const status = document.getElementById('impact-analysis-status');
+    const select = document.getElementById('impact-target-file');
+    const runButton = document.getElementById('impact-run-button');
+    const output = document.getElementById('impact-analysis-results');
+
+    if (!panel || !status || !select || !runButton || !output) {
+        console.error('Impact Analysis UI elements are missing.');
+        return;
+    }
+
+    // Close competing views and destroy their network instances.
+    if (net) {
+        net.destroy();
+        net = null;
+    }
+    if (callNet) {
+        callNet.destroy();
+        callNet = null;
+    }
+
+    for (const id of [
+        'network-container',
+        'graph-summary',
+        'call-graph-container',
+        'call-graph-summary',
+        'call-graph-unresolved',
+        'call-graph-controls'
+    ]) {
+        const element = document.getElementById(id);
+        if (element) element.style.display = 'none';
+    }
+
+    panel.style.display = 'block';
+    status.textContent = 'Loading indexed files...';
+    output.replaceChildren();
+    select.disabled = true;
+    runButton.disabled = true;
+
+    try {
+        const response = await fetch('/api/dependency-graph', {
+            headers: { Accept: 'application/json' }
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok || !payload.success ||
+            !payload.data || !Array.isArray(payload.data.nodes)) {
+            throw new Error(payload.error || 'The dependency graph response is invalid.');
+        }
+
+        const nodes = payload.data.nodes
+            .filter(node => node && typeof node.id === 'string' && node.id.length > 0)
+            .sort((a, b) => a.id.localeCompare(b.id));
+
+        select.replaceChildren();
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = nodes.length
+            ? 'Select a file...'
+            : 'No indexed files available';
+        select.appendChild(placeholder);
+
+        for (const node of nodes) {
+            const option = document.createElement('option');
+            option.value = node.id;
+            option.textContent = node.label || node.id;
+            select.appendChild(option);
+        }
+
+        select.disabled = nodes.length === 0;
+        runButton.disabled = nodes.length === 0;
+
+        if (nodes.length > 0) {
+            select.value = nodes[0].id;
+        }
+
+        const indexedAt = payload.data.indexedAt || 'not reported';
+        status.textContent =
+            `Loaded ${nodes.length} indexed files. Indexed snapshot: ${indexedAt}. ` +
+            'This analysis reflects the indexed snapshot, not a guarantee of current disk state.';
+    } catch (error) {
+        select.replaceChildren();
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Unable to load indexed files';
+        select.appendChild(option);
+
+        status.textContent = `Could not load files: ${error.message}`;
+        console.error('Impact Analysis file loading failed:', error);
+    }
+}
+
+async function runDependencyImpact() {
+    const select = document.getElementById('impact-target-file');
+    const runButton = document.getElementById('impact-run-button');
+    const status = document.getElementById('impact-analysis-status');
+    const output = document.getElementById('impact-analysis-results');
+
+    if (!select || !runButton || !status || !output) return;
+
+    const target = select.value;
+
+    if (!target) {
+        status.textContent = 'Select an indexed file before running the analysis.';
+        return;
+    }
+
+    runButton.disabled = true;
+    output.replaceChildren();
+    status.textContent = `Analyzing dependents of ${target}...`;
+
+    try {
+        const response = await fetch(
+            '/api/dependency-impact?file=' + encodeURIComponent(target),
+            { headers: { Accept: 'application/json' } }
+        );
+
+        const payload = await response.json();
+
+        if (!response.ok || !payload.success || !payload.data) {
+            throw new Error(payload.error || `Impact API returned HTTP ${response.status}.`);
+        }
+
+        const result = payload.data;
+        const affected = Array.isArray(result.affectedFiles) ? result.affectedFiles : [];
+        const dependents = Array.isArray(result.directDependents)
+            ? result.directDependents
+            : [];
+
+        const heading = document.createElement('h3');
+        heading.textContent = `Impact results: ${result.target || target}`;
+        output.appendChild(heading);
+
+        const summary = document.createElement('p');
+        summary.style.color = 'var(--sec)';
+        summary.textContent =
+            `Method: ${result.method || 'not reported'}. ` +
+            `Direct dependents: ${dependents.length}. ` +
+            `Affected-file records: ${affected.length}.`;
+        output.appendChild(summary);
+
+        const listHeading = document.createElement('h4');
+        listHeading.textContent = 'Direct dependents';
+        output.appendChild(listHeading);
+
+        if (dependents.length === 0) {
+            const empty = document.createElement('p');
+            empty.style.color = 'var(--sec)';
+            empty.textContent =
+                'No direct dependents were found in this indexed snapshot. ' +
+                'This does not prove that changing the file is safe.';
+            output.appendChild(empty);
+        } else {
+            const list = document.createElement('ul');
+            list.style.paddingLeft = '24px';
+
+            for (const dependent of dependents) {
+                const item = document.createElement('li');
+                item.style.margin = '6px 0';
+                item.style.overflowWrap = 'anywhere';
+                item.textContent = String(dependent);
+                list.appendChild(item);
+            }
+
+            output.appendChild(list);
+        }
+
+        if (Array.isArray(result.limitations) && result.limitations.length > 0) {
+            const limitationsHeading = document.createElement('h4');
+            limitationsHeading.textContent = 'Analysis limitations';
+            output.appendChild(limitationsHeading);
+
+            const limitationsList = document.createElement('ul');
+            limitationsList.style.paddingLeft = '24px';
+
+            for (const limitation of result.limitations) {
+                const item = document.createElement('li');
+                item.style.margin = '5px 0';
+                item.style.color = 'var(--sec)';
+                item.textContent = String(limitation);
+                limitationsList.appendChild(item);
+            }
+
+            output.appendChild(limitationsList);
+        }
+
+        status.textContent = 'Analysis completed using the API response.';
+    } catch (error) {
+        status.textContent = `Impact analysis failed: ${error.message}`;
+        console.error('Dependency impact request failed:', error);
+    } finally {
+        runButton.disabled = select.options.length <= 1;
+    }
+}
+
+const refreshIndexStatusButton = document.getElementById('refreshIndexStatus');
+if (refreshIndexStatusButton) {
+    refreshIndexStatusButton.addEventListener('click', loadIndexStatus);
+}
+
+async function loadBlastRadiusSymbols() {
+  const select = document.getElementById('blast-radius-target');
+  const status = document.getElementById('blast-radius-status');
+  if (!select || !status) return;
+
+  select.disabled = true;
+  select.replaceChildren();
+  status.textContent = 'Loading indexed functions and methods...';
+
+  try {
+    const response = await fetch('/api/blast-radius/symbols', {
+      headers: { Accept: 'application/json' }
+    });
+    const payload = await response.json();
+
+    if (!response.ok || !payload.success || !Array.isArray(payload.data)) {
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+
+    for (const symbol of payload.data) {
+      const option = document.createElement('option');
+      option.value = String(symbol.id);
+      option.textContent =
+        `${symbol.name} — ${symbol.file_path}:${symbol.line ?? '?' } (${symbol.kind})`;
+      option.dataset.name = String(symbol.name || '');
+      option.dataset.filePath = String(symbol.file_path || '');
+      select.appendChild(option);
+    }
+
+    if (payload.data.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No indexed functions or methods';
+      select.appendChild(option);
+    }
+
+    select.disabled = payload.data.length === 0;
+    status.textContent = `${payload.data.length} indexed symbol(s) available.`;
+  } catch (error) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'Unable to load symbols';
+    select.appendChild(option);
+    status.textContent = `Symbol loading failed: ${error.message}`;
+  }
+}
+
+async function runBlastRadius() {
+  const select = document.getElementById('blast-radius-target');
+  const button = document.getElementById('blast-radius-run');
+  const status = document.getElementById('blast-radius-status');
+  const output = document.getElementById('blast-radius-results');
+  if (!select || !button || !status || !output) return;
+
+  const option = select.selectedOptions[0];
+  if (!option || !option.dataset.name || !option.dataset.filePath) {
+    status.textContent = 'Select an indexed function or method first.';
+    return;
+  }
+
+  button.disabled = true;
+  output.replaceChildren();
+  status.textContent = 'Analyzing same-file callers...';
+
+  try {
+    const query = new URLSearchParams({
+      name: option.dataset.name,
+      file_path: option.dataset.filePath
+    });
+    const response = await fetch('/api/blast-radius?' + query.toString(), {
+      headers: { Accept: 'application/json' }
+    });
+    const payload = await response.json();
+
+    if (!response.ok || !payload.success || !payload.data) {
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+
+    const result = payload.data;
+    const addText = (tag, value, parent = output) => {
+      const element = document.createElement(tag);
+      element.textContent = String(value ?? '');
+      parent.appendChild(element);
+      return element;
+    };
+
+    addText('h4', `Status: ${result.status || 'unknown'}`);
+
+    if (result.target) {
+      addText('p',
+        `Target: ${result.target.name} — ${result.target.file_path}:${result.target.line}`);
+    }
+
+    if (result.message) addText('p', result.message);
+    if (result.scope) addText('p', `Scope: ${result.scope}`);
+    if (result.confidence) addText('p', `Confidence: ${result.confidence}`);
+
+    if (Array.isArray(result.candidates) && result.candidates.length) {
+      addText('h4', 'Ambiguous candidates');
+      const list = document.createElement('ul');
+      for (const candidate of result.candidates) {
+        const item = document.createElement('li');
+        item.textContent =
+          `${candidate.name || result.targetName || ''} — ` +
+          `${candidate.file_path || '?'}:${candidate.line ?? '?'}`;
+        list.appendChild(item);
+      }
+      output.appendChild(list);
+    }
+
+    addText('h4', `Potential callers (${Array.isArray(result.callers) ? result.callers.length : 0})`);
+    if (Array.isArray(result.callers) && result.callers.length) {
+      const list = document.createElement('ul');
+      for (const caller of result.callers) {
+        const item = document.createElement('li');
+        item.textContent =
+          `${caller.caller || 'unknown'} at line ${caller.callerLine ?? '?'}; ` +
+          `call site line ${caller.callLine ?? '?'}; ` +
+          `kind ${caller.callerKind || 'unknown'}; ${caller.resolution || 'unverified'}`;
+        list.appendChild(item);
+      }
+      output.appendChild(list);
+    } else {
+      addText('p', 'No callers were resolved. This does not establish safety.');
+    }
+
+    if (Array.isArray(result.unresolvedMatchingCalls) &&
+        result.unresolvedMatchingCalls.length) {
+      addText('h4', 'Unresolved matching calls');
+      const list = document.createElement('ul');
+      for (const call of result.unresolvedMatchingCalls) {
+        const item = document.createElement('li');
+        item.textContent =
+          `${call.caller || 'unknown'} at line ${call.callerLine ?? '?'}; ` +
+          `call site ${call.callLine ?? '?'}; resolution ${call.resolution || 'unknown'}`;
+        list.appendChild(item);
+      }
+      output.appendChild(list);
+    }
+
+    if (result.coverage) {
+      addText('h4', 'Coverage and limitations');
+      const list = document.createElement('ul');
+      const labels = [
+        ['filesAnalyzed', 'Files analyzed'],
+        ['syntaxErrors', 'Syntax errors detected'],
+        ['unresolvedMatchingCallCount', 'Unresolved matching calls'],
+        ['crossFileCallsAnalyzed', 'Cross-file calls analyzed'],
+        ['memberCallsAnalyzed', 'Member calls analyzed'],
+        ['dynamicDispatchAnalyzed', 'Dynamic dispatch analyzed']
+      ];
+      for (const [key, label] of labels) {
+        if (!(key in result.coverage)) continue;
+        const item = document.createElement('li');
+        item.textContent = `${label}: ${String(result.coverage[key])}`;
+        list.appendChild(item);
+      }
+      output.appendChild(list);
+    }
+
+    status.textContent = `Analysis response received: ${result.status || 'unknown'}.`;
+  } catch (error) {
+    status.textContent = `Blast Radius analysis failed: ${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+async function loadDependencyAudit() {
+  const status = document.getElementById('dependency-audit-status');
+  const summary = document.getElementById('dependency-audit-summary');
+  const details = document.getElementById('dependency-audit-details');
+  const refresh = document.getElementById('dependency-audit-refresh');
+  if (!status || !summary || !details) return;
+
+  status.textContent = 'Loading dependency audit...';
+  summary.replaceChildren();
+  details.replaceChildren();
+  if (refresh) refresh.disabled = true;
+
+  try {
+    const response = await fetch('/api/dependency-audit', { cache: 'no-store' });
+    const payload = await response.json();
+    if (!response.ok || !payload.success || !payload.data) {
+      throw new Error(payload.message || 'API request failed.');
+    }
+
+    const report = payload.data;
+    status.textContent = 'Report loaded. Static analysis only; findings require engineering review.';
+
+    const metrics = [
+      ['Indexed files', report.indexedFiles],
+      ['Resolved local imports', report.resolvedLocalImports],
+      ['Unresolved records reviewed', report.unresolvedEntriesReviewed],
+      ['SQLite integrity', report.integrity ? report.integrity.result : 'unavailable']
+    ];
+
+    const grid = document.createElement('div');
+    grid.className = 'stats-grid';
+    for (const pair of metrics) {
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+      const label = document.createElement('div');
+      label.className = 'stat-label';
+      label.textContent = pair[0];
+      const value = document.createElement('div');
+      value.className = 'stat-value';
+      value.textContent = String(pair[1] == null ? 'n/a' : pair[1]);
+      card.append(label, value);
+      grid.appendChild(card);
+    }
+    summary.appendChild(grid);
+
+    const heading = document.createElement('h3');
+    heading.textContent = 'Classification Summary';
+    details.appendChild(heading);
+
+    const table = document.createElement('table');
+    table.className = 'data-table';
+    const thead = document.createElement('thead');
+    const header = document.createElement('tr');
+    for (const name of ['Category', 'Occurrences', 'Unique specifiers', 'Unique packages']) {
+      const th = document.createElement('th');
+      th.textContent = name;
+      header.appendChild(th);
+    }
+    thead.appendChild(header);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const [category, counts] of Object.entries(report.classificationSummary || {})) {
+      const row = document.createElement('tr');
+      for (const value of [
+        category, counts.importOccurrences, counts.uniqueSpecifiers, counts.uniquePackages
+      ]) {
+        const cell = document.createElement('td');
+        cell.textContent = String(value == null ? '' : value);
+        row.appendChild(cell);
+      }
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    details.appendChild(table);
+
+    const examplesHeading = document.createElement('h3');
+    examplesHeading.textContent = 'Examples';
+    details.appendChild(examplesHeading);
+
+    for (const [category, entries] of Object.entries(report.examples || {})) {
+      const section = document.createElement('section');
+      const subheading = document.createElement('h4');
+      subheading.textContent = category;
+      section.appendChild(subheading);
+      const list = document.createElement('ul');
+
+      for (const entry of entries) {
+        const li = document.createElement('li');
+        li.textContent = (entry.source || '(unknown source)') +
+          ' ? ' + (entry.specifier || '(empty specifier)');
+        list.appendChild(li);
+      }
+
+      section.appendChild(list);
+      details.appendChild(section);
+    }
+
+    const methodology = document.createElement('p');
+    methodology.textContent = report.methodology || 'Methodology not provided.';
+    details.appendChild(methodology);
+
+    const metadata = document.createElement('p');
+    metadata.textContent =
+      'Index timestamp: ' + (report.indexTimestamp || 'unknown') +
+      ' | Extension manifest: ' + (report.extensionManifestFound ? 'found' : 'not found') +
+      ' | VS Code engine declared: ' + (report.extensionEngineDeclared ? 'yes' : 'no') +
+      ' | Database writes performed: ' + String(report.databaseWritesPerformed) +
+      ' | Write status: ' + (report.databaseWriteStatus || 'not provided');
+    details.appendChild(metadata);
+  } catch (error) {
+    status.textContent = 'Dependency audit failed: ' + error.message;
+  } finally {
+    if (refresh) refresh.disabled = false;
+  }
+}
+
+loadIndexStatus();
+loadStats();
+    </script>
+</body>
+</html>
