@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 .cortex/
 backups/
 reports/
@@ -7,6 +7,12 @@ _archive/
 *.log
 *.pre-*
 *.backup*
+*.before-*
+*.failed-*
+*.tmp
+*.rollback-*
+.cortex-candidate-*
+.audit-*
 cortex-brain.db*
 cortex.exe
 *.tgz
